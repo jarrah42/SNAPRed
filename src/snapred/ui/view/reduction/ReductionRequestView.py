@@ -1,13 +1,15 @@
 from typing import Callable, List, Optional
 
-from qtpy.QtCore import Signal, Slot
+from qtpy.QtCore import Qt, Signal, Slot
 from qtpy.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QGridLayout,
     QTextEdit,
     QVBoxLayout,
+    QWidget
 )
 from snapred.backend.log.logger import snapredLogger
 from snapred.meta.decorators.Resettable import Resettable
@@ -40,43 +42,100 @@ class ReductionRequestView(BackendRequestView):
         self.enterRunNumberButton = QPushButton("Enter Run Number")
         self.clearButton = QPushButton("Clear")
         self.runNumberButtonLayout = QVBoxLayout()
-        self.runNumberButtonLayout.addWidget(self.enterRunNumberButton)
-        self.runNumberButtonLayout.addWidget(self.clearButton)
-
-        self.runNumberLayout.addWidget(self.runNumberInput)
-        self.runNumberLayout.addLayout(self.runNumberButtonLayout)
 
         # Run number display
         self.runNumberDisplay = QTextEdit()
         self.runNumberDisplay.setReadOnly(True)
 
-        # Lite mode toggle, pixel masks dropdown, and retain unfocused data checkbox
+        # Lite-mode toggle, pixel masks dropdown, and retain unfocused data checkbox
         self.liteModeToggle = self._labeledField("Lite Mode", Toggle(parent=self, state=True))
         self.retainUnfocusedDataCheckbox = self._labeledCheckBox("Retain Unfocused Data")
         self.convertUnitsDropdown = self._sampleDropDown(
             "Convert Units", ["TOF", "dSpacing", "Wavelength", "MomentumTransfer"]
         )
 
+        # Live-data toggle
+        liveModeToggleColors = Toggle.Colors(background=(Qt.gray, Qt.darkRed), gradient=(Qt.darkRed, (Qt.gray, Qt.red)), button_face=Qt.lightGray)
+        self.liveDataToggle = self._labeledField("Live", Toggle(parent=self, state=False, colors=liveModeToggleColors))
+                
         # Set field properties
         self.liteModeToggle.setEnabled(False)
         self.retainUnfocusedDataCheckbox.setEnabled(False)
         self.pixelMaskDropdown.setEnabled(False)
         self.convertUnitsDropdown.setEnabled(False)
-
-        # Add widgets to layout
-        self.layout.addLayout(self.runNumberLayout, 0, 0)
-        self.layout.addWidget(self.runNumberDisplay)
-        self.layout.addWidget(self.liteModeToggle)
-        self.layout.addWidget(self.pixelMaskDropdown)
-        self.layout.addWidget(self.retainUnfocusedDataCheckbox)
-        self.layout.addWidget(self.convertUnitsDropdown)
-
+ 
         # Connect buttons to methods
         self.enterRunNumberButton.clicked.connect(self.addRunNumber)
         self.clearButton.clicked.connect(self.clearRunNumbers)
+        self.liveDataToggle.field.state_change.connect(self._setLiveDataMode)
 
         self.signalRemoveRunNumber.connect(self._removeRunNumber)
 
+        # Set the current live-data mode
+        self._setLiveDataMode(False, True)
+        
+    @Slot(bool)
+    def _setLiveDataMode(self, live: bool, init: bool=False):
+        self.setUpdatesEnabled(False)
+       
+        if live:
+            if not init:
+                # remove everything
+                self.layout.removeItem(self.runNumberLayout)
+                #
+                self.runNumberLayout.removeItem(self.runNumberButtonLayout)
+                self.runNumberLayout.removeWidget(self.runNumberInput)
+                self.runNumberInput.setVisible(False)
+                #
+                self.runNumberButtonLayout.removeWidget(self.enterRunNumberButton)
+                self.enterRunNumberButton.setVisible(False)
+                self.runNumberButtonLayout.removeWidget(self.clearButton)
+                self.clearButton.setVisible(False)
+                #
+                self.layout.removeWidget(self.runNumberDisplay)
+                self.runNumberDisplay.setVisible(False)
+                self.layout.removeWidget(self.liteModeToggle)
+                self.layout.removeWidget(self.pixelMaskDropdown)
+                self.layout.removeWidget(self.retainUnfocusedDataCheckbox)
+                self.retainUnfocusedDataCheckbox.setVisible(False)
+                self.layout.removeWidget(self.convertUnitsDropdown)
+                self.convertUnitsDropdown.setVisible(False)
+                self.layout.removeWidget(self.liveDataToggle)
+            
+            # add a few back
+            self.layout.addWidget(self.liteModeToggle, 0, 2)
+            self.layout.addWidget(self.pixelMaskDropdown)
+            self.layout.addWidget(self.liveDataToggle, 2, 2)
+        else:
+            if not init:
+                # remove a few
+                self.layout.removeWidget(self.liteModeToggle)
+                self.layout.removeWidget(self.pixelMaskDropdown)
+                self.layout.removeWidget(self.liveDataToggle)
+            
+            # add everything back
+            self.runNumberButtonLayout.addWidget(self.enterRunNumberButton)
+            self.enterRunNumberButton.setVisible(True)
+            self.runNumberButtonLayout.addWidget(self.clearButton)
+            self.clearButton.setVisible(True)
+            #
+            self.runNumberLayout.addWidget(self.runNumberInput)
+            self.runNumberLayout.addLayout(self.runNumberButtonLayout)
+            self.runNumberInput.setVisible(True)
+            #
+            self.layout.addWidget(self.liteModeToggle, 0, 2)
+            self.layout.addLayout(self.runNumberLayout, 1, 0)
+            self.layout.addWidget(self.runNumberDisplay, 1, 1)
+            self.runNumberDisplay.setVisible(True)
+            self.layout.addWidget(self.pixelMaskDropdown, 2, 0)
+            self.layout.addWidget(self.retainUnfocusedDataCheckbox, 3, 0)
+            self.retainUnfocusedDataCheckbox.setVisible(True)
+            self.layout.addWidget(self.convertUnitsDropdown, 3, 1)
+            self.convertUnitsDropdown.setVisible(True)
+            self.layout.addWidget(self.liveDataToggle, 3, 2)
+            
+        self.setUpdatesEnabled(True)
+    
     @Slot()
     def addRunNumber(self):
         # TODO: FIX THIS!
