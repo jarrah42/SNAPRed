@@ -1,12 +1,15 @@
 from typing import Callable, List, Optional
 
 from qtpy.QtCore import Qt, Signal, Slot
+from qtpy.QtGui import QFontMetrics
 from qtpy.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QGridLayout,
+    QSlider,
     QTextEdit,
     QVBoxLayout,
     QWidget
@@ -54,10 +57,14 @@ class ReductionRequestView(BackendRequestView):
             "Convert Units", ["TOF", "dSpacing", "Wavelength", "MomentumTransfer"]
         )
 
-        # Live-data toggle
+        # Live-data toggle and controls
         liveModeToggleColors = Toggle.Colors(background=(Qt.gray, Qt.darkRed), gradient=(Qt.darkRed, (Qt.gray, Qt.red)), button_face=Qt.lightGray)
         self.liveDataToggle = self._labeledField("Live", Toggle(parent=self, state=False, colors=liveModeToggleColors))
-                
+        self.liveDataUpdateInterval = self._labeledField("update interval", IntervalSlider(forwardInterval=True), horizontalLayout=False)        
+        self.liveDataUpdateInterval.setVisible(False)
+        self.liveDataInterval = self._labeledField("data interval", IntervalSlider(forwardInterval=False), horizontalLayout=False)        
+        self.liveDataInterval.setVisible(False)
+                               
         # Set field properties
         self.liteModeToggle.setEnabled(False)
         self.retainUnfocusedDataCheckbox.setEnabled(False)
@@ -103,14 +110,23 @@ class ReductionRequestView(BackendRequestView):
                 self.layout.removeWidget(self.liveDataToggle)
             
             # add a few back
-            self.layout.addWidget(self.liteModeToggle, 0, 2)
-            self.layout.addWidget(self.pixelMaskDropdown)
-            self.layout.addWidget(self.liveDataToggle, 2, 2)
+            self.layout.addWidget(self.pixelMaskDropdown, 0, 0, 1, 1)
+            self.layout.setColumnStretch(0, 1)
+            self.layout.addWidget(self.liteModeToggle, 0, 3, 1, 1)
+            self.layout.addWidget(self.liveDataUpdateInterval, 2, 0, 1, 1)
+            self.liveDataUpdateInterval.setVisible(True)
+            self.layout.addWidget(self.liveDataToggle, 2, 3, 1, 1)
+            self.layout.addWidget(self.liveDataInterval, 3, 0, 1, 1)
+            self.liveDataInterval.setVisible(True)
         else:
             if not init:
                 # remove a few
                 self.layout.removeWidget(self.liteModeToggle)
                 self.layout.removeWidget(self.pixelMaskDropdown)
+                self.layout.removeWidget(self.liveDataUpdateInterval)
+                self.liveDataUpdateInterval.setVisible(False)
+                self.layout.removeWidget(self.liveDataInterval)
+                self.liveDataInterval.setVisible(False)
                 self.layout.removeWidget(self.liveDataToggle)
             
             # add everything back
@@ -123,16 +139,16 @@ class ReductionRequestView(BackendRequestView):
             self.runNumberLayout.addLayout(self.runNumberButtonLayout)
             self.runNumberInput.setVisible(True)
             #
-            self.layout.addWidget(self.liteModeToggle, 0, 2)
+            self.layout.addWidget(self.liteModeToggle, 0, 3, 1, 1)
             self.layout.addLayout(self.runNumberLayout, 1, 0)
             self.layout.addWidget(self.runNumberDisplay, 1, 1)
             self.runNumberDisplay.setVisible(True)
             self.layout.addWidget(self.pixelMaskDropdown, 2, 0)
-            self.layout.addWidget(self.retainUnfocusedDataCheckbox, 3, 0)
+            self.layout.addWidget(self.retainUnfocusedDataCheckbox, 3, 0, 1, 1)
             self.retainUnfocusedDataCheckbox.setVisible(True)
-            self.layout.addWidget(self.convertUnitsDropdown, 3, 1)
+            self.layout.addWidget(self.convertUnitsDropdown, 3, 1, 1, 1)
             self.convertUnitsDropdown.setVisible(True)
-            self.layout.addWidget(self.liveDataToggle, 3, 2)
+            self.layout.addWidget(self.liveDataToggle, 3, 3, 1, 1)
             
         self.setUpdatesEnabled(True)
     
@@ -215,3 +231,78 @@ class ReductionRequestView(BackendRequestView):
 
     def getPixelMasks(self):
         return self.pixelMaskDropdown.checkedItems()
+
+
+class IntervalSlider(QWidget):
+
+    _forwardStyleSheet = """
+QSlider::groove:horizontal {
+    background: red;
+    position: absolute; /* 4px from the left and right of the widget */
+    left: 4px; right: 4px;
+}
+
+QSlider::handle:horizontal {
+    height: 10px;
+    background: green;
+    margin: 0 -4px; /* expand outside the groove */
+}
+
+QSlider::add-page:horizontal {
+    background: white;
+}
+
+QSlider::sub-page:horizontal {
+    background: pink;
+}
+"""
+
+    _reverseStyleSheet = """
+QSlider::groove:horizontal {
+    background: red;
+    position: absolute; /* 4px from the left and right of the widget */
+    left: 4px; right: 4px;
+}
+
+QSlider::handle:horizontal {
+    height: 10px;
+    background: green;
+    margin: 0 -4px; /* expand outside the groove */
+}
+
+QSlider::add-page:horizontal {
+    background: pink;
+}
+
+QSlider::sub-page:horizontal {
+    background: white;
+}
+"""
+    
+    def __init__(self, forwardInterval: bool=True):
+        super().__init__()
+
+        self.slider = QSlider(Qt.Horizontal)
+        self._forwardInterval = forwardInterval
+        self.setStyleSheet(IntervalSlider._forwardStyleSheet if self._forwardInterval else IntervalSlider._reverseStyleSheet)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(100)
+        self.slider.setValue(50)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(10)
+        self.slider.valueChanged.connect(self.on_value_changed)
+
+        self.sliderText = QLabel()
+        textMetrics = QFontMetrics(self.slider.font())
+        self.sliderText.setFixedHeight(textMetrics.height() + 4)
+        self.sliderText.setFixedWidth(textMetrics.width("t - 999s") + 4)
+        self.sliderText.setText("50s" if self._forwardInterval else "t - 50s")
+        
+        layout = QHBoxLayout()
+        layout.addWidget(self.slider)
+        layout.addWidget(self.sliderText)
+        self.setLayout(layout)
+
+    def on_value_changed(self, value):
+        self.sliderText.setText(f"{value}s" if self._forwardInterval else f"t - {100 - value}s")
+    

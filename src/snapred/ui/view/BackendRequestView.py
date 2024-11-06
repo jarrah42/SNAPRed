@@ -22,8 +22,8 @@ class BackendRequestView(QWidget):
         self.layout = QGridLayout()
         self.setLayout(self.layout)
 
-    def _labeledField(self, label, field=None):
-        return LabeledField(label, field, self)
+    def _labeledField(self, label, field=None, horizontalLayout=True):
+        return LabeledField(label, field, parent=self, horizontalLayout=horizontalLayout)
 
     def _labeledLineEdit(self, label):
         return LabeledField(label, QLineEdit(parent=self), self)
