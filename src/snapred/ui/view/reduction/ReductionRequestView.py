@@ -18,6 +18,7 @@ from snapred.backend.log.logger import snapredLogger
 from snapred.meta.decorators.Resettable import Resettable
 from snapred.ui.view.BackendRequestView import BackendRequestView
 from snapred.ui.widget.Toggle import Toggle
+from snapred.ui.widget.IntervalSlider import IntervalSlider, ReverseIntervalSlider
 
 logger = snapredLogger.getLogger(__name__)
 
@@ -60,9 +61,11 @@ class ReductionRequestView(BackendRequestView):
         # Live-data toggle and controls
         liveModeToggleColors = Toggle.Colors(background=(Qt.gray, Qt.darkRed), gradient=(Qt.darkRed, (Qt.gray, Qt.red)), button_face=Qt.lightGray)
         self.liveDataToggle = self._labeledField("Live", Toggle(parent=self, state=False, colors=liveModeToggleColors))
-        self.liveDataUpdateInterval = self._labeledField("update interval", IntervalSlider(forwardInterval=True), horizontalLayout=False)        
+        self.updateInterval = IntervalSlider()
+        self.liveDataUpdateInterval = self._labeledField("update interval", self.updateInterval, horizontalLayout=False)        
         self.liveDataUpdateInterval.setVisible(False)
-        self.liveDataInterval = self._labeledField("data interval", IntervalSlider(forwardInterval=False), horizontalLayout=False)        
+        self.dataInterval = ReverseIntervalSlider()
+        self.liveDataInterval = self._labeledField("data interval", self.dataInterval, horizontalLayout=False)        
         self.liveDataInterval.setVisible(False)
                                
         # Set field properties
@@ -231,78 +234,3 @@ class ReductionRequestView(BackendRequestView):
 
     def getPixelMasks(self):
         return self.pixelMaskDropdown.checkedItems()
-
-
-class IntervalSlider(QWidget):
-
-    _forwardStyleSheet = """
-QSlider::groove:horizontal {
-    background: red;
-    position: absolute; /* 4px from the left and right of the widget */
-    left: 4px; right: 4px;
-}
-
-QSlider::handle:horizontal {
-    height: 10px;
-    background: green;
-    margin: 0 -4px; /* expand outside the groove */
-}
-
-QSlider::add-page:horizontal {
-    background: white;
-}
-
-QSlider::sub-page:horizontal {
-    background: pink;
-}
-"""
-
-    _reverseStyleSheet = """
-QSlider::groove:horizontal {
-    background: red;
-    position: absolute; /* 4px from the left and right of the widget */
-    left: 4px; right: 4px;
-}
-
-QSlider::handle:horizontal {
-    height: 10px;
-    background: green;
-    margin: 0 -4px; /* expand outside the groove */
-}
-
-QSlider::add-page:horizontal {
-    background: pink;
-}
-
-QSlider::sub-page:horizontal {
-    background: white;
-}
-"""
-    
-    def __init__(self, forwardInterval: bool=True):
-        super().__init__()
-
-        self.slider = QSlider(Qt.Horizontal)
-        self._forwardInterval = forwardInterval
-        self.setStyleSheet(IntervalSlider._forwardStyleSheet if self._forwardInterval else IntervalSlider._reverseStyleSheet)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(100)
-        self.slider.setValue(50)
-        self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(10)
-        self.slider.valueChanged.connect(self.on_value_changed)
-
-        self.sliderText = QLabel()
-        textMetrics = QFontMetrics(self.slider.font())
-        self.sliderText.setFixedHeight(textMetrics.height() + 4)
-        self.sliderText.setFixedWidth(textMetrics.width("t - 999s") + 4)
-        self.sliderText.setText("50s" if self._forwardInterval else "t - 50s")
-        
-        layout = QHBoxLayout()
-        layout.addWidget(self.slider)
-        layout.addWidget(self.sliderText)
-        self.setLayout(layout)
-
-    def on_value_changed(self, value):
-        self.sliderText.setText(f"{value}s" if self._forwardInterval else f"t - {100 - value}s")
-    
