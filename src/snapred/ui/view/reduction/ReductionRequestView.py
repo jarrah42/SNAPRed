@@ -115,8 +115,9 @@ class ReductionRequestView(BackendRequestView):
             # add a few back
             self.layout.addWidget(self.pixelMaskDropdown, 0, 0, 1, 1)
             self.layout.setColumnStretch(0, 1)
+            self.layout.setColumnStretch(1, 1)
             self.layout.addWidget(self.liteModeToggle, 0, 3, 1, 1)
-            self.layout.addWidget(self.liveDataUpdateInterval, 2, 0, 1, 1)
+            self.layout.addWidget(self.liveDataUpdateInterval, 2, 1, 1, 1)
             self.liveDataUpdateInterval.setVisible(True)
             self.layout.addWidget(self.liveDataToggle, 2, 3, 1, 1)
             self.layout.addWidget(self.liveDataInterval, 3, 0, 1, 1)
