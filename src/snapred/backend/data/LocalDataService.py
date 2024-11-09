@@ -252,7 +252,10 @@ class LocalDataService:
         # that `GetIPTS` recognizes; in this case, the IPTS directory will be returned, but the input
         # file will not yet exist.
         if not Path(self.createNeutronFilename(ipts, runNumber, useLiteMode=False)).exists():
-            raise RuntimeError(f"Run '{runNumber}' has no entry in the expected IPTS directory '{ipts}'.")
+            raise RuntimeError(
+                f"Run '{runNumber}' has no entry in the expected IPTS directory location: '{ipts}'.\n"
+                + "  If this is a live acquisition, this may be expected."
+            )
             
         return str(ipts)
 
