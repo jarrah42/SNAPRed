@@ -3,16 +3,18 @@ import glob
 import json
 import os
 import re
+import socket
 import stat
 import time
 from errno import ENOENT as NOT_FOUND
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import h5py
 from mantid.dataobjects import MaskWorkspace
-from mantid.kernel import PhysicalConstants
+from mantid.kernel import ConfigService, PhysicalConstants
 from mantid.simpleapi import GetIPTS, mtd
 from pydantic import validate_call
 
@@ -234,7 +236,25 @@ class LocalDataService:
         LocalDataService.getUniqueTimestamp._previousTimestamp = nextTimestamp
         return nextTimestamp
 
-    # Moved from `GroceryService` in order to deal with the special case in `getIPTS` following.
+    def hasLiveDataConnection(self, facility: str = "SNS", instrument: str = "SNAP"):
+        """For 'live data' methods: test if there is a listener connection to the instrument."""
+        
+        # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well,
+        #   so this check should also return True on those nodes.
+        # If this method returns True, then the `SNSLiveEventDataListener` should be able to function.
+        
+        # Normalize to an actual "URL" and then strip off the protocol (not actually "http") and port:
+        #   `liveDataAddress` returns "bl3-daq1.sns.gov.31415".
+        hostname = urlparse("http://" + ConfigService.getFacility(facility).instrument(instrument).liveDataAddress()).hostname
+        status = True
+        try:
+            socket.gethostbyaddr(hostname)
+        except Exception: 
+            # specifically: expecting a `socket.gaierror`, but any exception indicates there's no connection
+            status = False
+        return status
+        
+    # Moved from `GroceryService` in order to deal with the special "live data" case in `getIPTS` following.
     @staticmethod
     def createNeutronFilename(IPTS: str, runNumber: str, useLiteMode: bool) -> str:
         instr = "nexus.lite" if useLiteMode else "nexus.native"

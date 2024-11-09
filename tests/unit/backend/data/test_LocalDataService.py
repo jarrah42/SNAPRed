@@ -395,6 +395,24 @@ def test_getUniqueTimestamp():
     assert len(ts_structs) == numberToGenerate
 
 
+@mock.patch("socket.gethostbyaddr")
+def test_hasLiveDataConnection(mockGetHostByAddr):
+    liveDataHostname = "bl3-daq1.sns.gov"
+    liveDataIPV4 = '10.111.6.150'
+    mockGetHostByAddr.return_value = (liveDataHostname, [], [liveDataIPV4])
+    instance = LocalDataService()
+    assert instance.hasLiveDataConnection()
+    mockGetHostByAddr.assert_called_once_with(liveDataHostname)
+
+
+@mock.patch("socket.gethostbyaddr")
+def test_hasLiveDataConnection_no_connection(mockGetHostByAddr):
+    liveDataHostname = "bl3-daq1.sns.gov"
+    mockGetHostByAddr.side_effect = RuntimeError("no live connection")
+    instance = LocalDataService()
+    assert not instance.hasLiveDataConnection()
+
+
 def test_prepareStateRoot_creates_state_root_directory():
     # Test that the <state root> directory is created when it doesn't exist.
     localDataService = LocalDataService()
