@@ -522,8 +522,10 @@ def test_writeGroupingMap_relative_paths():
     assert relativePathCount > 0
 
 
+@mock.patch("pathlib.Path.exists")
 @mock.patch(ThisService + "GetIPTS")
-def test_calibrationFileExists(GetIPTS):  # noqa ARG002
+def test_calibrationFileExists(GetIPTS, pathExists):  # noqa ARG002
+    pathExists.return_value = True
     localDataService = LocalDataService()
     stateId = ENDURING_STATE_ID
     with state_root_redirect(localDataService, stateId=stateId) as tmpRoot:
@@ -557,9 +559,12 @@ def test_calibrationFileExists_bad_ipts(GetIPTS):
         assert not localDataService.checkCalibrationFileExists(runNumber)
 
 
-@mock.patch(ThisService + "GetIPTS")
-def test_calibrationFileExists_not(GetIPTS):  # noqa ARG002
+def test_calibrationFileExists_not():  # noqa ARG002
+    # Warning: `LocalDataService.getIPTS` must be patched here
+    #   in order to bypass the `path.exists` check of the input-data file in `getIPTS`.
     localDataService = LocalDataService()
+    localDataService.getIPTS = mock.Mock()
+    
     stateId = ENDURING_STATE_ID
     with state_root_redirect(localDataService, stateId=stateId) as tmpRoot:
         nonExistentPath = tmpRoot.path() / "1755"
@@ -567,9 +572,28 @@ def test_calibrationFileExists_not(GetIPTS):  # noqa ARG002
         runNumber = "654321"
         assert not localDataService.checkCalibrationFileExists(runNumber)
 
+def test_createNeutronFilename():
+    """Test the creation of the nexus filename"""
+    instance = LocalDataService()
+    IPTS = "/SNS/SNAP/IPTS-1234567"
+    runNumber = "654321"
+    res = instance.createNeutronFilename(IPTS, runNumber, False)
+    assert IPTS in res
+    assert Config["nexus.native.prefix"] in res
+    assert runNumber in res
+    assert "lite" not in res.lower()
 
+    # now use lite mode
+    res = instance.createNeutronFilename(IPTS, runNumber, True)
+    assert IPTS in res
+    assert Config["nexus.lite.prefix"] in res
+    assert runNumber in res
+    assert "lite" in res.lower()
+
+@mock.patch("pathlib.Path.exists")
 @mock.patch(ThisService + "GetIPTS")
-def test_getIPTS(mockGetIPTS):
+def test_getIPTS(mockGetIPTS, mockPathExists):
+    mockPathExists.return_value = True
     mockGetIPTS.return_value = "nowhere/"
     localDataService = LocalDataService()
     runNumber = "123456"
@@ -589,7 +613,9 @@ def test_getIPTS(mockGetIPTS):
 
 # NOTE this test calls `GetIPTS` (via `getIPTS`) with no mocks
 # this is intentional, to ensure it is being called correctly
-def test_getIPTS_cache():
+@mock.patch("pathlib.Path.exists")
+def test_getIPTS_cache(mockPathExists):
+    mockPathExists.return_value = True
     localDataService = LocalDataService()
     localDataService.getIPTS.cache_clear()
     assert localDataService.getIPTS.cache_info() == functools._CacheInfo(hits=0, misses=0, maxsize=128, currsize=0)
@@ -637,6 +663,22 @@ def test_getIPTS_cache():
         assert res == str(incorrectIPTS) + os.sep
         assert localDataService.getIPTS.cache_info() == functools._CacheInfo(hits=0, misses=1, maxsize=128, currsize=1)
 
+# Test `getIPTS` when a run doesn't actually exist yet,
+#   but it does have an IPTS directory.
+@mock.patch("pathlib.Path.exists")
+def test_getIPTS_no_run(mockPathExists):
+    mockPathExists.return_value = False
+    localDataService = LocalDataService()
+    localDataService.getIPTS.cache_clear()
+
+    # test data
+    instrument = "SNAP"
+    runNumber = "123"
+    correctIPTS = Path(Resource.getPath("inputs/testInstrument/IPTS-456"))
+
+    with amend_config(data_dir=str(correctIPTS / "nexus")):
+        with pytest.raises(RuntimeError, match=f"Run '{runNumber}' has no entry.*"):
+            res = localDataService.getIPTS(runNumber, instrument)
 
 def test_workspaceIsInstance(cleanup_workspace_at_exit):
     localDataService = LocalDataService()

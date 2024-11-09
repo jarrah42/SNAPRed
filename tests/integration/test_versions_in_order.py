@@ -2,7 +2,7 @@
 
 """
 
-This is a test of verisoning inside calibration from the API layer.
+This is a test of versioning inside calibration from the API layer.
 Calls are made through the API to endpoints inside the calibration service,
 down to the underlying data layer.
 
@@ -83,7 +83,7 @@ class ImitationDataService(LocalDataService):
         return Resource.getPath("inputs/crystalInfo/example.cif")
 
     def getIPTS(self, *x, **y):
-        # if this is not overriden, it creates hundreds of headaches
+        # if this is not overridden, it creates hundreds of headaches
         return Resource.getPath("inputs/testInstrument/IPTS-456/")
 
     def generateStateId(self, runId: str) -> Tuple[str, str]:

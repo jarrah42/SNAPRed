@@ -234,9 +234,26 @@ class LocalDataService:
         LocalDataService.getUniqueTimestamp._previousTimestamp = nextTimestamp
         return nextTimestamp
 
+    # Moved from `GroceryService` in order to deal with the special case in `getIPTS` following.
+    @staticmethod
+    def createNeutronFilename(IPTS: str, runNumber: str, useLiteMode: bool) -> str:
+        instr = "nexus.lite" if useLiteMode else "nexus.native"
+        pre = instr + ".prefix"
+        ext = instr + ".extension"
+        return IPTS + Config[pre] + str(runNumber) + Config[ext]
+
     @lru_cache
     def getIPTS(self, runNumber: str, instrumentName: str = Config["instrument.name"]) -> str:
         ipts = GetIPTS(RunNumber=runNumber, Instrument=instrumentName)
+        
+        # When successful, `GetIPTS` returns the likely user-data directory for this run number.
+        # However, it does not actually check whether any input-data file for this run number exists.
+        # For example, a run number undergoing live data acquisition, may have an adjacent run number
+        # that `GetIPTS` recognizes; in this case, the IPTS directory will be returned, but the input
+        # file will not yet exist.
+        if not Path(self.createNeutronFilename(ipts, runNumber, useLiteMode=False)).exists():
+            raise RuntimeError(f"Run '{runNumber}' has no entry in the expected IPTS directory '{ipts}'.")
+            
         return str(ipts)
 
     def workspaceIsInstance(self, wsName: str, wsType: Any) -> bool:

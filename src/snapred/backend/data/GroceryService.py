@@ -198,10 +198,8 @@ class GroceryService:
         return str(ipts)
 
     def _createNeutronFilename(self, runNumber: str, useLiteMode: bool) -> str:
-        instr = "nexus.lite" if useLiteMode else "nexus.native"
-        pre = instr + ".prefix"
-        ext = instr + ".extension"
-        return self.getIPTS(runNumber) + Config[pre] + str(runNumber) + Config[ext]
+        IPTS = self.getIPTS(runNumber)
+        return self.dataService.createNeutronFilename(IPTS, runNumber, useLiteMode)
 
     @validate_call
     def _createGroupingFilename(self, runNumber: str, groupingScheme: str, useLiteMode: bool) -> str:
