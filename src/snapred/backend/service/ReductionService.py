@@ -362,13 +362,9 @@ class ReductionService(Service):
         calVersion = None
         normVersion = None
         if ContinueWarning.Type.MISSING_DIFFRACTION_CALIBRATION not in request.continueFlags:
-            calVersion = self.dataFactoryService.getThisOrLatestCalibrationVersion(
-                request.runNumber, request.useLiteMode
-            )
+            calVersion = self.dataFactoryService.getLatestCalibrationVersion(request.runNumber, request.useLiteMode)
         if ContinueWarning.Type.MISSING_NORMALIZATION not in request.continueFlags:
-            normVersion = self.dataFactoryService.getThisOrLatestNormalizationVersion(
-                request.runNumber, request.useLiteMode
-            )
+            normVersion = self.dataFactoryService.getLatestNormalizationVersion(request.runNumber, request.useLiteMode)
 
         # Fetch pixel masks
         residentMasks = {}
@@ -405,12 +401,15 @@ class ReductionService(Service):
         # gather the input workspace and the diffcal table
         self.groceryClerk.name("inputWorkspace").neutron(request.runNumber).useLiteMode(request.useLiteMode).add()
 
-        if calVersion:
+        if calVersion is not None:
             self.groceryClerk.name("diffcalWorkspace").diffcal_table(request.runNumber, calVersion).useLiteMode(
                 request.useLiteMode
             ).add()
 
-        if normVersion:
+        if normVersion is not None:
+            if int(normVersion) >= int(request.runNumber):
+                raise RuntimeError(f"Normalization version {normVersion} is not valid for run number {request.run}.")
+
             self.groceryClerk.name("normalizationWorkspace").normalization(request.runNumber, normVersion).useLiteMode(
                 request.useLiteMode
             ).add()
@@ -495,7 +494,9 @@ class ReductionService(Service):
         for request in requests:
             runNumber = json.loads(request.payload)["runNumber"]
             useLiteMode = bool(json.loads(request.payload)["useLiteMode"])
-            normalizationVersion = self.dataFactoryService.getThisOrCurrentNormalizationVersion(runNumber, useLiteMode)
+            normalizationVersion = self.dataFactoryService.getLatestApplicableNormalizationVersion(
+                runNumber, useLiteMode
+            )
             version = "normalization_" + str(normalizationVersion)
             if versions.get(version) is None:
                 versions[version] = []

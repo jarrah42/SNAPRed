@@ -2,6 +2,7 @@ import threading
 from random import randint
 from unittest.mock import MagicMock, patch
 
+import pytest
 from mantid.simpleapi import (
     CreateSingleValuedWorkspace,
     CreateTableWorkspace,
@@ -15,6 +16,7 @@ from snapred.meta.pointer import create_pointer
 from snapred.ui.workflow.DiffCalWorkflow import DiffCalWorkflow
 
 
+@pytest.mark.ui()
 @patch("snapred.ui.workflow.DiffCalWorkflow.WorkflowImplementer.request")
 def test_purge_bad_peaks(workflowRequest, qtbot):  # noqa: ARG001
     """
@@ -53,6 +55,7 @@ def test_purge_bad_peaks(workflowRequest, qtbot):  # noqa: ARG001
     assert diffcalWorkflow.ingredients.groupedPeakLists[0].peaks == good_peaks
 
 
+@pytest.mark.ui()
 @patch("snapred.ui.workflow.DiffCalWorkflow.WorkflowImplementer.request")
 def test_purge_bad_peaks_two_wkspindex(workflowRequest, qtbot):  # noqa: ARG001
     """
@@ -101,6 +104,7 @@ def test_purge_bad_peaks_two_wkspindex(workflowRequest, qtbot):  # noqa: ARG001
     assert diffcalWorkflow.ingredients.groupedPeakLists[1].peaks == good_peaks2
 
 
+@pytest.mark.ui()
 @patch("snapred.ui.workflow.DiffCalWorkflow.WorkflowImplementer.request")
 def test_purge_bad_peaks_too_few(workflowRequest, qtbot):  # noqa: ARG001
     """
