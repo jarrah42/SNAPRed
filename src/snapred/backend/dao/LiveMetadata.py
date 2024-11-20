@@ -23,5 +23,5 @@ class LiveMetadata:
     
     detectorState: DetectorState
  
-    def runInProgress(self):
+    def hasActiveRun(self):
         return int(runNumber) != INACTIVE_RUN

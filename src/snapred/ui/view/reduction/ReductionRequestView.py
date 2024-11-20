@@ -51,7 +51,7 @@ class ReductionRequestView(BackendRequestView):
         self.runNumberDisplay = QTextEdit()
         self.runNumberDisplay.setReadOnly(True)
 
-        # Lite-mode toggle, pixel masks dropdown, and retain unfocused data checkbox
+        # Lite-mode toggle, pixel mask dropdown, and retain unfocused data checkbox
         self.liteModeToggle = self._labeledField("Lite Mode", Toggle(parent=self, state=True))
         self.retainUnfocusedDataCheckbox = self._labeledCheckBox("Retain Unfocused Data")
         self.convertUnitsDropdown = self._sampleDropDown(
@@ -61,6 +61,7 @@ class ReductionRequestView(BackendRequestView):
         # Live-data toggle and controls
         liveModeToggleColors = Toggle.Colors(background=(Qt.gray, Qt.darkRed), gradient=(Qt.darkRed, (Qt.gray, Qt.red)), button_face=Qt.lightGray)
         self.liveDataToggle = self._labeledField("Live", Toggle(parent=self, state=False, colors=liveModeToggleColors))
+        self.liveRunMetadata = QLabel("no connection", parent=self)
         self.updateInterval = IntervalSlider()
         self.liveDataUpdateInterval = self._labeledField("update interval", self.updateInterval, horizontalLayout=False)        
         self.liveDataUpdateInterval.setVisible(False)
@@ -117,16 +118,20 @@ class ReductionRequestView(BackendRequestView):
             self.layout.setColumnStretch(0, 1)
             self.layout.setColumnStretch(1, 1)
             self.layout.addWidget(self.liteModeToggle, 0, 3, 1, 1)
-            self.layout.addWidget(self.liveDataUpdateInterval, 2, 1, 1, 1)
+            self.layout.addWidget(self.liveRunMetadata, 1, 0)
+            self.liveRunMetadata.setVisible(True)
+            self.layout.addWidget(self.liveDataUpdateInterval, 3, 1, 1, 1)
             self.liveDataUpdateInterval.setVisible(True)
-            self.layout.addWidget(self.liveDataToggle, 2, 3, 1, 1)
-            self.layout.addWidget(self.liveDataInterval, 3, 0, 1, 1)
+            self.layout.addWidget(self.liveDataToggle, 3, 3, 1, 1)
+            self.layout.addWidget(self.liveDataInterval, 4, 0, 1, 1)
             self.liveDataInterval.setVisible(True)
         else:
             if not init:
                 # remove a few
                 self.layout.removeWidget(self.liteModeToggle)
                 self.layout.removeWidget(self.pixelMaskDropdown)
+                self.layout.removeWidget(self.liveRunMetadata)
+                self.liveRunMetadata.setVisible(False)
                 self.layout.removeWidget(self.liveDataUpdateInterval)
                 self.liveDataUpdateInterval.setVisible(False)
                 self.layout.removeWidget(self.liveDataInterval)

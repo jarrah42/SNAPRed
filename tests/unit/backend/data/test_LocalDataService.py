@@ -257,10 +257,10 @@ def _readInstrumentParameters():
     return instrumentParameters
 
 
-def test_readInstrumentConfig():
+def test__readInstrumentConfig():
     localDataService = LocalDataService()
     localDataService._readInstrumentParameters = _readInstrumentParameters
-    actual = localDataService.readInstrumentConfig()
+    actual = localDataService._readInstrumentConfig()
     assert actual is not None
     assert actual.version == "1.4"
     assert actual.name == "SNAP"
@@ -268,7 +268,7 @@ def test_readInstrumentConfig():
 
 def test_readInstrumentParameters():
     localDataService = LocalDataService()
-    localDataService.instrumentConfigPath = Resource.getPath("inputs/SNAPInstPrm.json")
+    localDataService._instrumentConfigPath = Resource.getPath("inputs/SNAPInstPrm.json")
     actual = localDataService._readInstrumentParameters()
     assert actual is not None
     assert actual["version"] == 1.4
@@ -781,7 +781,7 @@ def test__readRunConfig():
     # Test of private `_readRunConfig` method
     localDataService = LocalDataService()
     localDataService.getIPTS = mock.Mock(return_value="IPTS-123")
-    localDataService.instrumentConfig = getMockInstrumentConfig()
+    localDataService._instrumentConfig = getMockInstrumentConfig()
     actual = localDataService._readRunConfig("57514")
     assert actual is not None
     assert actual.runNumber == "57514"
@@ -802,7 +802,7 @@ def test_constructPVFilePath():
 @mock.patch("h5py.File", return_value="not None")
 def test_readPVFile(h5pyMock):  # noqa: ARG001
     localDataService = LocalDataService()
-    localDataService.instrumentConfig = getMockInstrumentConfig()
+    localDataService._instrumentConfig = getMockInstrumentConfig()
     localDataService._constructPVFilePath = mock.Mock()
     localDataService._constructPVFilePath.return_value = Path(Resource.getPath("./"))
     actual = localDataService._readPVFile(mock.Mock())
@@ -861,7 +861,7 @@ def test_generateStateId_cache():
 
 def test__findMatchingFileList():
     localDataService = LocalDataService()
-    localDataService.instrumentConfig = getMockInstrumentConfig()
+    localDataService._instrumentConfig = getMockInstrumentConfig()
     actual = localDataService._findMatchingFileList(Resource.getPath("inputs/SNAPInstPrm.json"), False)
     assert actual is not None
     assert len(actual) == 1
@@ -1538,7 +1538,7 @@ def test_readWriteReductionRecord():
     stateId = ENDURING_STATE_ID
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService._getLatestReductionVersionNumber = mock.Mock(return_value=0)
         localDataService.groceryService = mock.Mock()
         localDataService.writeReductionRecord(testRecord)
@@ -1661,7 +1661,7 @@ def test_writeReductionData(readSyntheticReductionRecord, createReductionWorkspa
     wss = createReductionWorkspaces(testRecord.workspaceNames)  # noqa: F841
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService.getIPTS = mock.Mock(return_value="IPTS-12345")
 
         # Important to this test: use a path that doesn't already exist
@@ -1688,7 +1688,7 @@ def test_writeReductionData_no_directories(readSyntheticReductionRecord, createR
 
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService.getIPTS = mock.Mock(return_value="IPTS-12345")
 
         # Important to this test: use a path that doesn't already exist
@@ -1718,7 +1718,7 @@ def test_writeReductionData_metadata(readSyntheticReductionRecord, createReducti
     wss = createReductionWorkspaces(testRecord.workspaceNames)  # noqa: F841
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService.getIPTS = mock.Mock(return_value="IPTS-12345")
 
         # Important to this test: use a path that doesn't already exist
@@ -1752,7 +1752,7 @@ def test_readWriteReductionData(readSyntheticReductionRecord, createReductionWor
     wss = createReductionWorkspaces(testRecord.workspaceNames)  # noqa: F841
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService.getIPTS = mock.Mock(return_value="IPTS-12345")
 
         # Important to this test: use a path that doesn't already exist
@@ -1805,7 +1805,7 @@ def test_readWriteReductionData_pixel_mask(
     wss = createReductionWorkspaces(testRecord.workspaceNames)  # noqa: F841
     localDataService = LocalDataService()
     with reduction_root_redirect(localDataService, stateId=stateId):
-        localDataService.instrumentConfig = mock.Mock()
+        localDataService._instrumentConfig = mock.Mock()
         localDataService.getIPTS = mock.Mock(return_value="IPTS-12345")
 
         # Important to this test: use a path that doesn't already exist
@@ -2152,8 +2152,7 @@ def test_initializeState():
         instrumentState=DAOFactory.pv_instrument_state.copy(),
     )
 
-    localDataService.readInstrumentConfig = mock.Mock()
-    localDataService.readInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
+    localDataService._instrumentConfig = testCalibrationData.instrumentState.instrumentConfig
     localDataService.writeCalibrationState = mock.Mock()
     localDataService._prepareStateRoot = mock.Mock()
 
@@ -2164,6 +2163,7 @@ def test_initializeState():
 
         actual = localDataService.initializeState(runNumber, useLiteMode, "test")
         actual.creationDate = testCalibrationData.creationDate
+
     assert actual == testCalibrationData
     assert localDataService._writeDefaultDiffCalTable.call_count == 2
     localDataService._writeDefaultDiffCalTable.assert_any_call(runNumber, True)
@@ -2183,8 +2183,7 @@ def test_initializeState_calls_prepareStateRoot():
     localDataService._writeDefaultDiffCalTable = mock.Mock()
 
     testCalibrationData = DAOFactory.calibrationParameters()
-    localDataService.readInstrumentConfig = mock.Mock()
-    localDataService.readInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
+    localDataService._instrumentConfig = testCalibrationData.instrumentState.instrumentConfig
     localDataService.writeCalibrationState = mock.Mock()
     localDataService._readDefaultGroupingMap = mock.Mock(return_value=mock.Mock(isDirty=False))
 
@@ -2209,7 +2208,7 @@ def test_badPaths():
     service.verifyPaths = True  # override test setting
     with Config_override("instrument.home", "this/path/does/not/exist"):
         with pytest.raises(FileNotFoundError):
-            service.readInstrumentConfig()
+            service._readInstrumentConfig()
     service.verifyPaths = False  # put the setting back
 
 
@@ -2220,7 +2219,7 @@ def test_noInstrumentConfig():
     service.verifyPaths = True  # override test setting
     with Config_override("instrument.config", "this/path/does/not/exist"):
         with pytest.raises(FileNotFoundError):
-            service.readInstrumentConfig()
+            service._readInstrumentConfig()
     service.verifyPaths = False  # put the setting back
 
 

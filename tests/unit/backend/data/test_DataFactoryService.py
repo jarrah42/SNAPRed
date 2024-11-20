@@ -130,9 +130,9 @@ class TestDataFactoryService(unittest.TestCase):
         assert actual == self.instance.lookupService.readDefaultGroupingMap.return_value
 
     def test_getDefaultInstrumentState(self):
-        self.instance.lookupService.generateInstrumentStateFromRoot = mock.Mock()
+        self.instance.lookupService.generateInstrumentState = mock.Mock()
         actual = self.instance.getDefaultInstrumentState("123")
-        assert actual == self.instance.lookupService.generateInstrumentStateFromRoot.return_value
+        assert actual == self.instance.lookupService.generateInstrumentState.return_value
 
     ## TEST CALIBRATION METHODS
 

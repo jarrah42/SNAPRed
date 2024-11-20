@@ -70,7 +70,7 @@ class DataFactoryService:
         return self.lookupService.readDefaultGroupingMap()
 
     def getDefaultInstrumentState(self, runId: str):
-        return self.lookupService.generateInstrumentStateFromRoot(runId)
+        return self.lookupService.generateInstrumentState(runId)
 
     ##### CALIBRATION METHODS #####
 

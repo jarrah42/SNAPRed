@@ -83,37 +83,39 @@ def _createFileNotFoundError(msg, filename):
 
 @Singleton
 class LocalDataService:
-    instrumentConfig: "InstrumentConfig"
-    verifyPaths: bool = True
 
     # conversion factor from microsecond/Angstrom to meters
     # (TODO: FIX THIS COMMENT! Obviously `m2cm` doesn't convert from 1.0 / Angstrom to 1.0 / meters.)
     CONVERSION_FACTOR = Config["constants.m2cm"] * PhysicalConstants.h / PhysicalConstants.NeutronMass
 
     def __init__(self) -> None:
-        self.verifyPaths = Config["localdataservice.config.verifypaths"]
-        self.instrumentConfig = self.readInstrumentConfig()
+        self._verifyPaths = Config["localdataservice.config.verifypaths"]
+        self._instrumentConfig = self._readInstrumentConfig()
         self.mantidSnapper = MantidSnapper(None, "Utensils")
 
     ##### MISCELLANEOUS METHODS #####
 
+    @property
+    def instrumentConfig(self):
+        return self._instrumentConfig
+        
     def fileExists(self, path):
         return os.path.isfile(path)
 
     def _determineInstrConfigPaths(self) -> None:
         """This method locates the instrument configuration path and
-        sets the instance variable ``instrumentConfigPath``."""
+        sets the instance variable ``_instrumentConfigPath``."""
         # verify parent directory exists
         self.dataPath = Path(Config["instrument.home"])
-        if self.verifyPaths and not self.dataPath.exists():
+        if self._verifyPaths and not self.dataPath.exists():
             raise _createFileNotFoundError(Config["instrument.home"], self.dataPath)
 
         # look for the config file and verify it exists
-        self.instrumentConfigPath = Config["instrument.config"]
-        if self.verifyPaths and not Path(self.instrumentConfigPath).exists():
+        self._instrumentConfigPath = Config["instrument.config"]
+        if self._verifyPaths and not Path(self._instrumentConfigPath).exists():
             raise _createFileNotFoundError("Missing Instrument Config", Config["instrument.config"])
 
-    def readInstrumentConfig(self) -> InstrumentConfig:
+    def _readInstrumentConfig(self) -> InstrumentConfig:
         self._determineInstrConfigPaths()
 
         instrumentParameterMap = self._readInstrumentParameters()
@@ -125,10 +127,10 @@ class LocalDataService:
             instrumentParameterMap["version"] = str(instrumentParameterMap["version"])
             instrumentConfig = InstrumentConfig(**instrumentParameterMap)
         except KeyError as e:
-            raise KeyError(f"{e}: while reading instrument configuration '{self.instrumentConfigPath}'") from e
+            raise KeyError(f"{e}: while reading instrument configuration '{self._instrumentConfigPath}'") from e
         if self.dataPath:
             instrumentConfig.calibrationDirectory = Path(Config["instrument.calibration.home"])
-            if self.verifyPaths and not instrumentConfig.calibrationDirectory.exists():
+            if self._verifyPaths and not instrumentConfig.calibrationDirectory.exists():
                 raise _createFileNotFoundError("[calibration directory]", instrumentConfig.calibrationDirectory)
 
         return instrumentConfig
@@ -136,11 +138,11 @@ class LocalDataService:
     def _readInstrumentParameters(self) -> Dict[str, Any]:
         instrumentParameterMap: Dict[str, Any] = {}
         try:
-            with open(self.instrumentConfigPath, "r") as json_file:
+            with open(self._instrumentConfigPath, "r") as json_file:
                 instrumentParameterMap = json.load(json_file)
             return instrumentParameterMap
         except FileNotFoundError as e:
-            raise _createFileNotFoundError("Instrument configuration file", self.instrumentConfigPath) from e
+            raise _createFileNotFoundError("Instrument configuration file", self._instrumentConfigPath) from e
 
     def readStateConfig(self, runId: str, useLiteMode: bool) -> StateConfig:
         diffCalibration = self.calibrationIndexer(runId, useLiteMode).readParameters()
@@ -886,27 +888,26 @@ class LocalDataService:
         #   and delete its workspaces after completion.
         grocer.deleteWorkspaceUnconditional(outWS)
 
-    def generateInstrumentStateFromRoot(self, runId: str):
+    def generateInstrumentState(self, runId: str):
         stateId, _ = self.generateStateId(runId)
 
         # Read the detector state from the pv data file
         detectorState = self.readDetectorState(runId)
-
-        # then read data from the common calibration state parameters stored at root of calibration directory
-        instrumentConfig = self.readInstrumentConfig()
-        # then pull static values specified by Malcolm from resources
+        
+        # Pull static values from resources
         defaultGroupSliceValue = Config["calibration.parameters.default.groupSliceValue"]
         fwhmMultipliers = Pair.model_validate(Config["calibration.parameters.default.FWHMMultiplier"])
         peakTailCoefficient = Config["calibration.parameters.default.peakTailCoefficient"]
         gsasParameters = GSASParameters(
             alpha=Config["calibration.parameters.default.alpha"], beta=Config["calibration.parameters.default.beta"]
         )
-        # then calculate the derived values
+        
+        # Calculate the derived values
         lambdaLimit = Limit(
-            minimum=detectorState.wav - (instrumentConfig.bandwidth / 2) + instrumentConfig.lowWavelengthCrop,
-            maximum=detectorState.wav + (instrumentConfig.bandwidth / 2),
+            minimum=detectorState.wav - (self.instrumentConfig.bandwidth / 2) + self.instrumentConfig.lowWavelengthCrop,
+            maximum=detectorState.wav + (self.instrumentConfig.bandwidth / 2),
         )
-        L = instrumentConfig.L1 + instrumentConfig.L2
+        L = self.instrumentConfig.L1 + self.instrumentConfig.L2
         tofLimit = Limit(
             minimum=lambdaLimit.minimum * L / self.CONVERSION_FACTOR,
             maximum=lambdaLimit.maximum * L / self.CONVERSION_FACTOR,
@@ -915,7 +916,7 @@ class LocalDataService:
 
         return InstrumentState(
             id=stateId,
-            instrumentConfig=instrumentConfig,
+            instrumentConfig=self.instrumentConfig,
             detectorState=detectorState,
             gsasParameters=gsasParameters,
             particleBounds=particleBounds,
@@ -931,9 +932,9 @@ class LocalDataService:
         from snapred.backend.data.GroceryService import GroceryService
 
         grocer = GroceryService()
-        stateId, _ = self.generateStateId(runId)
 
-        instrumentState = self.generateInstrumentStateFromRoot(runId)
+        instrumentState = self.generateInstrumentState(runId)
+        stateId = instrumentState.id
 
         calibrationReturnValue = None
 
