@@ -105,8 +105,13 @@ def mockPVFile(detectorState: DetectorState) -> mock.Mock:
         "entry/DASlogs/det_lin2/value": [detectorState.lin[1]],
     }
 
+    def del_item(key: str):
+        # bypass <class>.__delitem__
+        del dict_[key]
+        
     mock_ = mock.MagicMock(spec=h5py.File)
     mock_.get = lambda key, default=None: dict_.get(key, default)
+    mock_.del_item = del_item
     mock_.__getitem__.side_effect = dict_.__getitem__
     mock_.__setitem__.side_effect = dict_.__setitem__
     mock_.__contains__.side_effect = dict_.__contains__
@@ -1970,14 +1975,13 @@ def test_readDetectorState_bad_logs():
     localDataService._constructPVFilePath.return_value = "/not/a/path"
     localDataService._readPVFile = mock.Mock()
     testDetectorState = mockDetectorState("12345")
-    pvFile = mockPVFile(testDetectorState)
 
     # Case where wavelength logs are missing
-    pvFile_missing_wav = pvFile.copy()
-    del pvFile_missing_wav["entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value"]
+    pvFile_missing_wav = mockPVFile(testDetectorState)
+    pvFile_missing_wav.del_item("entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value")
     localDataService._readPVFile.return_value = pvFile_missing_wav
-
-    with pytest.raises(ValueError, match="Could not find wavelength logs in file '/not/a/path'"):
+    
+    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
         localDataService.readDetectorState("123")
 
     # Case where other required logs are missing
@@ -1987,15 +1991,15 @@ def test_readDetectorState_bad_logs():
     }
     localDataService._readPVFile.return_value = pvFile_missing_logs
 
-    with pytest.raises(ValueError, match="Could not find all required logs in file '/not/a/path'"):
+    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
         localDataService.readDetectorState("123")
 
     # Case where value in wavelength logs is not valid
-    pvFile_invalid_wav_value = pvFile.copy()
+    pvFile_invalid_wav_value = mockPVFile(testDetectorState)
     pvFile_invalid_wav_value["entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value"] = "glitch"
     localDataService._readPVFile.return_value = pvFile_invalid_wav_value
 
-    with pytest.raises(ValueError, match="Could not find wavelength logs in file '/not/a/path'"):
+    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
         localDataService.readDetectorState("123")
 
 
@@ -2081,7 +2085,7 @@ def test_detectorStateFromWorkspace_bad_logs(instrumentWorkspace):
     addInstrumentLogs(wsName, **logsInfo)
     # ------------------------------------------------------
 
-    with pytest.raises(RuntimeError, match="does not have all required logs"):
+    with pytest.raises(RuntimeError, match=r".*does not have all required logs"):
         service.detectorStateFromWorkspace(wsName)
 
 
