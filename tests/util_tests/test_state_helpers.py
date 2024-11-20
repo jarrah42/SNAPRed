@@ -38,11 +38,11 @@ def initPVFileMock():
 @mock.patch.object(LocalDataService, "_writeDefaultDiffCalTable")
 @mock.patch.object(LocalDataService, "generateStateId")
 @mock.patch.object(LocalDataService, "_readDefaultGroupingMap")
-@mock.patch.object(LocalDataService, "readInstrumentConfig")
+@mock.patch.object(LocalDataService, "getInstrumentConfig")
 @mock.patch.object(LocalDataService, "_readPVFile")
 def test_state_root_override_enter(
     mockReadPVFile,
-    mockReadInstrumentConfig,
+    mockGetInstrumentConfig,
     mockReadDefaultGroupingMap,
     mockGenerateStateId,
     mockWriteDefaultDiffCalTable,  # noqa ARG001
@@ -51,7 +51,7 @@ def test_state_root_override_enter(
     mockReadPVFile.return_value = initPVFileMock()
 
     testCalibrationData = DAOFactory.calibrationParameters("57514", True, 1)
-    mockReadInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
+    mockGetInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
     mockReadDefaultGroupingMap.return_value = DAOFactory.groupingMap_SNAP()
 
     stateId = "ab8704b0bc2a2342"
@@ -73,11 +73,11 @@ def test_state_root_override_enter(
 
 @mock.patch.object(LocalDataService, "_writeDefaultDiffCalTable")
 @mock.patch.object(LocalDataService, "_readDefaultGroupingMap")
-@mock.patch.object(LocalDataService, "readInstrumentConfig")
+@mock.patch.object(LocalDataService, "getInstrumentConfig")
 @mock.patch.object(LocalDataService, "_readPVFile")
 def test_state_root_override_exit(
     mockReadPVFile,
-    mockReadInstrumentConfig,
+    mockGetInstrumentConfig,
     mockReadDefaultGroupingMap,
     mockWriteDefaultDiffCalTable,  # noqa ARG001
 ):
@@ -85,7 +85,7 @@ def test_state_root_override_exit(
     mockReadPVFile.return_value = initPVFileMock()
 
     testCalibrationData = DAOFactory.calibrationParameters("57514", True, 1)
-    mockReadInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
+    mockGetInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
     mockReadDefaultGroupingMap.return_value = DAOFactory.groupingMap_SNAP()
 
     stateId = "ab8704b0bc2a2342"  # noqa: F841
@@ -102,11 +102,11 @@ def test_state_root_override_exit(
 
 @mock.patch.object(LocalDataService, "_writeDefaultDiffCalTable")
 @mock.patch.object(LocalDataService, "_readDefaultGroupingMap")
-@mock.patch.object(LocalDataService, "readInstrumentConfig")
+@mock.patch.object(LocalDataService, "getInstrumentConfig")
 @mock.patch.object(LocalDataService, "_readPVFile")
 def test_state_root_override_exit_no_delete(
     mockReadPVFile,
-    mockReadInstrumentConfig,
+    mockGetInstrumentConfig,
     mockReadDefaultGroupingMap,
     mockWriteDefaultDiffCalTable,  # noqa ARG001
 ):
@@ -114,7 +114,7 @@ def test_state_root_override_exit_no_delete(
     mockReadPVFile.return_value = initPVFileMock()
 
     testCalibrationData = DAOFactory.calibrationParameters("57514", True, 1)
-    mockReadInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
+    mockGetInstrumentConfig.return_value = testCalibrationData.instrumentState.instrumentConfig
     mockReadDefaultGroupingMap.return_value = DAOFactory.groupingMap_SNAP()
 
     stateId = "ab8704b0bc2a2342"  # noqa: F841

@@ -95,8 +95,7 @@ class LocalDataService:
 
     ##### MISCELLANEOUS METHODS #####
 
-    @property
-    def instrumentConfig(self):
+    def getInstrumentConfig(self):
         return self._instrumentConfig
         
     def fileExists(self, path):
@@ -241,8 +240,8 @@ class LocalDataService:
     def hasLiveDataConnection(self, facility: str = "SNS", instrument: str = "SNAP"):
         """For 'live data' methods: test if there is a listener connection to the instrument."""
         
-        # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well,
-        #   so this check should also return True on those nodes.
+        # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well.
+        #   So this check should also return True on those nodes.
         # If this method returns True, then the `SNSLiveEventDataListener` should be able to function.
         
         # Normalize to an actual "URL" and then strip off the protocol (not actually "http") and port:
@@ -255,31 +254,16 @@ class LocalDataService:
             # specifically: expecting a `socket.gaierror`, but any exception indicates there's no connection
             status = False
         return status
-        
-    # Moved from `GroceryService` in order to deal with the special "live data" case in `getIPTS` following.
-    @staticmethod
-    def createNeutronFilename(IPTS: str, runNumber: str, useLiteMode: bool) -> str:
-        instr = "nexus.lite" if useLiteMode else "nexus.native"
-        pre = instr + ".prefix"
-        ext = instr + ".extension"
-        return IPTS + Config[pre] + str(runNumber) + Config[ext]
 
     @lru_cache
     def getIPTS(self, runNumber: str, instrumentName: str = Config["instrument.name"]) -> str:
-        ipts = GetIPTS(RunNumber=runNumber, Instrument=instrumentName)
+        IPTS = GetIPTS(RunNumber=runNumber, Instrument=instrumentName)
         
-        # When successful, `GetIPTS` returns the likely user-data directory for this run number.
-        # However, it does not actually check whether any input-data file for this run number exists.
-        # For example, a run number undergoing live data acquisition, may have an adjacent run number
-        # that `GetIPTS` recognizes; in this case, the IPTS directory will be returned, but the input
-        # file will not yet exist.
-        if not Path(self.createNeutronFilename(ipts, runNumber, useLiteMode=False)).exists():
-            raise RuntimeError(
-                f"Run '{runNumber}' has no entry in the expected IPTS directory location: '{ipts}'.\n"
-                + "  If this is a live acquisition, this may be expected."
-            )
-            
-        return str(ipts)
+        # WARNING: 
+        #   When successful, `GetIPTS` returns the _likely_ user-data directory for this run number.
+        # It does _not_ actually check whether any input-data file for this run number exists.
+
+        return str(IPTS)
 
     def workspaceIsInstance(self, wsName: str, wsType: Any) -> bool:
         # Is the workspace an instance of the specified type.
@@ -298,8 +282,8 @@ class LocalDataService:
             IPTS=iptsPath,
             runNumber=runId,
             maskFileName="",
-            maskFileDirectory=iptsPath + self.instrumentConfig.sharedDirectory,
-            gsasFileDirectory=iptsPath + self.instrumentConfig.reducedDataDirectory,
+            maskFileDirectory=iptsPath + self._instrumentConfig.sharedDirectory,
+            gsasFileDirectory=iptsPath + self._instrumentConfig.reducedDataDirectory,
             calibrationState=None,
         )  # TODO: where to find case? "before" "after"
 
@@ -307,8 +291,8 @@ class LocalDataService:
         runConfig = self._readRunConfig(runId)
         return Path(
             runConfig.IPTS,
-            self.instrumentConfig.nexusDirectory,
-            f"SNAP_{str(runConfig.runNumber)}{self.instrumentConfig.nexusFileExtension}",
+            self._instrumentConfig.nexusDirectory,
+            f"SNAP_{str(runConfig.runNumber)}{self._instrumentConfig.nexusFileExtension}",
         )
 
     def _readPVFile(self, runId: str):
@@ -904,10 +888,10 @@ class LocalDataService:
         
         # Calculate the derived values
         lambdaLimit = Limit(
-            minimum=detectorState.wav - (self.instrumentConfig.bandwidth / 2) + self.instrumentConfig.lowWavelengthCrop,
-            maximum=detectorState.wav + (self.instrumentConfig.bandwidth / 2),
+            minimum=detectorState.wav - (self._instrumentConfig.bandwidth / 2) + self._instrumentConfig.lowWavelengthCrop,
+            maximum=detectorState.wav + (self._instrumentConfig.bandwidth / 2),
         )
-        L = self.instrumentConfig.L1 + self.instrumentConfig.L2
+        L = self._instrumentConfig.L1 + self._instrumentConfig.L2
         tofLimit = Limit(
             minimum=lambdaLimit.minimum * L / self.CONVERSION_FACTOR,
             maximum=lambdaLimit.maximum * L / self.CONVERSION_FACTOR,
@@ -916,7 +900,7 @@ class LocalDataService:
 
         return InstrumentState(
             id=stateId,
-            instrumentConfig=self.instrumentConfig,
+            instrumentConfig=self._instrumentConfig,
             detectorState=detectorState,
             gsasParameters=gsasParameters,
             particleBounds=particleBounds,

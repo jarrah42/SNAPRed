@@ -250,12 +250,7 @@ class TestGroceryService(unittest.TestCase):
         assert self.instance._key(grouping1, runId1, native) == self.instance._key(grouping1, runId1, native)
 
     def test_nexus_filename(self):
-        """Test the creation of the nexus filename"""
-        
-        # For now, this test just duplicates the test in `test_LocalDataService`.
-        # TODO: A better test would be to do `LocalDataService.createNeutronFilename.assert_called_once()`,
-        #   but `WhateversInTheFridge` doesn't work that way.
-        
+        """Test the creation of the nexus filename"""        
         res = self.instance._createNeutronFilename(self.runNumber, False)
         assert self.instance.dataService.getIPTS(self.runNumber) in res
         assert Config["nexus.native.prefix"] in res
