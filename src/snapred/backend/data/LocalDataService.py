@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import datetime
 import glob
 import json
@@ -16,7 +17,7 @@ import h5py
 from mantid.dataobjects import MaskWorkspace
 from mantid.kernel import ConfigService, PhysicalConstants
 from mantid.simpleapi import GetIPTS, mtd
-from pydantic import validate_call
+from pydantic import validate_call, ValidationError
 
 from snapred.backend.dao import (
     GSASParameters,
@@ -44,6 +45,10 @@ from snapred.backend.dao.state import (
     InstrumentState,
 )
 from snapred.backend.dao.state.CalibrantSample import CalibrantSample
+from snapred.backend.data.util.mapping_util import (
+    mappingFromRun,
+    mappingFromNeXusLogs
+)
 from snapred.backend.data.Indexer import Indexer, IndexerType
 from snapred.backend.data.NexusHDF5Metadata import NexusHDF5Metadata as n5m
 from snapred.backend.error.RecoverableException import RecoverableException
@@ -801,11 +806,31 @@ class LocalDataService:
         indexer = self.normalizationIndexer(normalization.seedRun, normalization.useLiteMode)
         indexer.writeParameters(normalization)
 
+    def _detectorStateFromMapping(self, logs: Mapping) -> DetectorState:
+        detectorState = None
+        wav_key_1 = "BL3:Chop:Gbl:WavelengthReq"
+        wav_key_2 = "BL3:Chop:Skf1:WavelengthUserReq"
+        try:
+            try:
+                detectorState = DetectorState(
+                    arc=[logs["det_arc1"][0], logs["det_arc2"][0]],
+                    wav=logs["BL3:Chop:Gbl:WavelengthReq"][0] if wav_key_1 in logs\
+                        else logs[wav_key_2][0],
+                    freq=logs["BL3:Det:TH:BL:Frequency"][0],
+                    guideStat=logs["BL3:Mot:OpticsPos:Pos"][0],
+                    lin=[logs["det_lin1"][0], logs["det_lin2"][0]]
+                )
+            except (KeyError, TypeError) as e:
+                raise RuntimeError("Some required logs are not present. Cannot assemble a DetectorState") from e            
+        except ValidationError as e:
+            raise RuntimeError("Logs have an unexpected format.  Cannot assemble a DetectorState.") from e
+        return detectorState
+        
     def readDetectorState(self, runId: str) -> DetectorState:
-        return DetectorState.fromHDF5(self._readPVFile(runId))
+        return self._detectorStateFromMapping(mappingFromNeXusLogs(self._readPVFile(runId)))
 
     def detectorStateFromWorkspace(self, wsName: WorkspaceName) -> DetectorState:
-        return DetectorState.fromRun(mtd[wsName].getRun())
+        return self._detectorStateFromMapping(mappingFromRun(mtd[wsName].getRun()))
 
     @validate_call
     def _writeDefaultDiffCalTable(self, runNumber: str, useLiteMode: bool):

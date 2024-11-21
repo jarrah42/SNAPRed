@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import functools
 import importlib
 import json
@@ -95,30 +96,73 @@ def mockDetectorState(runId: str) -> DetectorState:
 
 
 def mockPVFile(detectorState: DetectorState) -> mock.Mock:
+    # See also: `tests/unit/backend/data/util/test_mapping_util.py`.
+    
+    # Note: `mapping_util.mappingFromNeXusLogs` will open the 'entry/DASlogs' group,
+    #   so this `dict` mocks the HDF5 group, not the PV-file itself.
+
+    # For the HDF5-file, each key requires the "/value" suffix.
     dict_ = {
-        "entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value": [detectorState.wav],
-        "entry/DASlogs/det_arc1/value": [detectorState.arc[0]],
-        "entry/DASlogs/det_arc2/value": [detectorState.arc[1]],
-        "entry/DASlogs/BL3:Det:TH:BL:Frequency/value": [detectorState.freq],
-        "entry/DASlogs/BL3:Mot:OpticsPos:Pos/value": [detectorState.guideStat],
-        "entry/DASlogs/det_lin1/value": [detectorState.lin[0]],
-        "entry/DASlogs/det_lin2/value": [detectorState.lin[1]],
+        "BL3:Chop:Skf1:WavelengthUserReq/value": [detectorState.wav],
+        "det_arc1/value": [detectorState.arc[0]],
+        "det_arc2/value": [detectorState.arc[1]],
+        "BL3:Det:TH:BL:Frequency/value": [detectorState.freq],
+        "BL3:Mot:OpticsPos:Pos/value": [detectorState.guideStat],
+        "det_lin1/value": [detectorState.lin[0]],
+        "det_lin2/value": [detectorState.lin[1]],
     }
 
     def del_item(key: str):
         # bypass <class>.__delitem__
         del dict_[key]
-        
-    mock_ = mock.MagicMock(spec=h5py.File)
+
+    mock_ = mock.MagicMock(spec=h5py.Group)
+    def open_group(path: str):
+        if path != "entry/DASlogs":
+            raise RuntimeError("unable to open group")
+        return mock_
+
     mock_.get = lambda key, default=None: dict_.get(key, default)
     mock_.del_item = del_item
+    mock_.open_group = open_group
     mock_.__getitem__.side_effect = dict_.__getitem__
-    mock_.__setitem__.side_effect = dict_.__setitem__
     mock_.__contains__.side_effect = dict_.__contains__
     mock_.keys.side_effect = dict_.keys
     return mock_
 
 
+def mockNeXusLogsMapping(detectorState: DetectorState) -> mock.Mock:
+    # See also: `tests/unit/backend/data/util/test_mapping_util.py`.
+    
+    dict_ = {
+        "BL3:Chop:Skf1:WavelengthUserReq": [detectorState.wav],
+        "det_arc1": [detectorState.arc[0]],
+        "det_arc2": [detectorState.arc[1]],
+        "BL3:Det:TH:BL:Frequency": [detectorState.freq],
+        "BL3:Mot:OpticsPos:Pos": [detectorState.guideStat],
+        "det_lin1": [detectorState.lin[0]],
+        "det_lin2": [detectorState.lin[1]],
+    }
+    return mockNeXusLogsMappingFromDict(dict_)
+    
+
+def mockNeXusLogsMappingFromDict(map: dict) -> mock.Mock:
+    dict_ = map
+
+    def del_item(key: str):
+        # bypass <class>.__delitem__
+        del dict_[key]
+
+    mock_ = mock.MagicMock(spec=Mapping)
+
+    mock_.get = lambda key, default=None: dict_.get(key, default)
+    mock_.del_item = del_item
+    mock_.__getitem__.side_effect = dict_.__getitem__
+    mock_.__contains__.side_effect = dict_.__contains__
+    mock_.keys.side_effect = dict_.keys
+    return mock_
+    
+        
 @pytest.fixture(autouse=True)
 def _capture_logging(monkeypatch):
     # For some reason pytest 'caplog' doesn't work with the SNAPRed logging setup.  (TODO: fix this!)
@@ -1930,77 +1974,91 @@ def test_readWriteNormalizationState():
         assert ans == normalization
 
 
-def test_readDetectorState():
+def test_readDetectorState(monkeypatch):
+    mockMappingFromNeXusLogs = mock.Mock(return_value=mock.Mock())
+    monkeypatch.setattr(LocalDataServiceModule, "mappingFromNeXusLogs", mockMappingFromNeXusLogs)
+    instance = LocalDataService()
+    expected = mockDetectorState("123")    
+    instance._detectorStateFromMapping = mock.Mock(return_value=expected)
+    instance._readPVFile = mock.Mock(return_value=mock.Mock())
+    instance._constructPVFilePath = mock.Mock(return_value="/mock/path")
+    actual = instance.readDetectorState("123")
+    assert actual == expected
+    mockMappingFromNeXusLogs.assert_called_once_with(
+        instance._readPVFile.return_value
+    )
+    instance._detectorStateFromMapping.assert_called_once_with(
+        mockMappingFromNeXusLogs.return_value
+    )
+
+def test__detectorStateFromMapping():
     localDataService = LocalDataService()
-    testDetectorState = mockDetectorState("123")
-    pvFile = mockPVFile(testDetectorState)
-    localDataService._readPVFile = mock.Mock(return_value=pvFile)
-
-    # Mock the _constructPVFilePath method
-    localDataService._constructPVFilePath = mock.Mock(return_value="/mock/path")
-
-    testDetectorState = DAOFactory.unreal_detector_state.copy()
-
-    actualDetectorState = localDataService.readDetectorState("123")
-    assert actualDetectorState == testDetectorState
+    expected = mockDetectorState("123")
+    logs = mockNeXusLogsMapping(expected)
+    actual = localDataService._detectorStateFromMapping(logs)
+    assert actual == expected
 
 
-def test_readDetectorStateWithDiffWavKey():
+def test__detectorStateFromMappingWithDiffWavKey():
     localDataService = LocalDataService()
-    pvFile = {
-        "entry/DASlogs/BL3:Chop:Gbl:WavelengthReq/value": [1.1],
-        "entry/DASlogs/det_arc1/value": [1],
-        "entry/DASlogs/det_arc2/value": [2],
-        "entry/DASlogs/BL3:Det:TH:BL:Frequency/value": [1.2],
-        "entry/DASlogs/BL3:Mot:OpticsPos:Pos/value": [1],
-        "entry/DASlogs/det_lin1/value": [1],
-        "entry/DASlogs/det_lin2/value": [2],
+    logsDict = {
+        "BL3:Chop:Gbl:WavelengthReq": [1.1],
+        "det_arc1": [1],
+        "det_arc2": [2],
+        "BL3:Det:TH:BL:Frequency": [1.2],
+        "BL3:Mot:OpticsPos:Pos": [1],
+        "det_lin1": [1],
+        "det_lin2": [2],
     }
-    localDataService._readPVFile = mock.Mock(return_value=pvFile)
+    mockLogs = mockNeXusLogsMappingFromDict(logsDict)
 
-    expectedDetectorState = DetectorState(
+    expected = DetectorState(
         arc=[1, 2],
         wav=1.1,
         freq=1.2,
         guideStat=1,
         lin=[1, 2],
     )
+    actual = localDataService._detectorStateFromMapping(mockLogs)
+ 
+    assert expected == actual
 
-    assert localDataService.readDetectorState("12345") == expectedDetectorState
 
-
-def test_readDetectorState_bad_logs():
+def test__detectorStateFromMapping_bad_logs():
     localDataService = LocalDataService()
-    localDataService._constructPVFilePath = mock.Mock()
-    localDataService._constructPVFilePath.return_value = "/not/a/path"
-    localDataService._readPVFile = mock.Mock()
     testDetectorState = mockDetectorState("12345")
 
     # Case where wavelength logs are missing
-    pvFile_missing_wav = mockPVFile(testDetectorState)
-    pvFile_missing_wav.del_item("entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value")
-    localDataService._readPVFile.return_value = pvFile_missing_wav
+    logs_missing_wav = mockNeXusLogsMapping(testDetectorState)
+    logs_missing_wav.del_item("BL3:Chop:Skf1:WavelengthUserReq")
     
-    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
-        localDataService.readDetectorState("123")
+    with pytest.raises(RuntimeError, match=r"Some required logs are not present.*"):
+        localDataService._detectorStateFromMapping(logs_missing_wav)
 
     # Case where other required logs are missing
-    pvFile_missing_logs = {
-        "entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value": [1.1]
+    missing_logs = {
+        "BL3:Chop:Skf1:WavelengthUserReq": [1.1]
         # Other required logs are missing
     }
-    localDataService._readPVFile.return_value = pvFile_missing_logs
+    mock_missing_logs = mockNeXusLogsMappingFromDict(missing_logs)
 
-    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
-        localDataService.readDetectorState("123")
+    with pytest.raises(RuntimeError, match=r"Some required logs are not present.*"):
+        localDataService._detectorStateFromMapping(logs_missing_wav)
 
     # Case where value in wavelength logs is not valid
-    pvFile_invalid_wav_value = mockPVFile(testDetectorState)
-    pvFile_invalid_wav_value["entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value"] = "glitch"
-    localDataService._readPVFile.return_value = pvFile_invalid_wav_value
+    invalid_wav_dict = {
+        "BL3:Chop:Gbl:WavelengthReq": "glitch",
+        "det_arc1": [1],
+        "det_arc2": [2],
+        "BL3:Det:TH:BL:Frequency": [1.2],
+        "BL3:Mot:OpticsPos:Pos": [1],
+        "det_lin1": [1],
+        "det_lin2": [2],
+    }
+    invalid_wav = mockNeXusLogsMappingFromDict(invalid_wav_dict)
 
-    with pytest.raises(RuntimeError, match=r"Neutron data file does not include all required logs.*"):
-        localDataService.readDetectorState("123")
+    with pytest.raises(RuntimeError, match=r"Logs have an unexpected format.*"):
+        localDataService._detectorStateFromMapping(invalid_wav)
 
 
 @pytest.fixture()
@@ -2085,7 +2143,7 @@ def test_detectorStateFromWorkspace_bad_logs(instrumentWorkspace):
     addInstrumentLogs(wsName, **logsInfo)
     # ------------------------------------------------------
 
-    with pytest.raises(RuntimeError, match=r".*does not have all required logs"):
+    with pytest.raises(RuntimeError, match=r"Some required logs are not present.*"):
         service.detectorStateFromWorkspace(wsName)
 
 
