@@ -7,7 +7,7 @@ from mantid.api import Run
 from snapred.backend.dao.state import DetectorState
 
 
-class LiveMetadata:
+class LiveMetadata(BaseModel):
     """Metadata about any in-progress data acquisition."""
     
     # Implementation notes:
@@ -28,17 +28,3 @@ class LiveMetadata:
  
     def hasActiveRun(self):
         return int(runNumber) != INACTIVE_RUN
-
-    @staticmethod
-    def _datetimeFromTimeStr(time: str) -> datetime:
-        # Convert from near ISO to ISO: strip three digits from the tail
-        return datetime.fromisoformat(time[0:-3])
-        
-    @classmethod
-    def fromRun(cls, run: Run) -> "LiveMetaData":        
-        return LiveMetaData(
-            runNumber=run.getProperty('run_number').value,
-            startTime=cls._datetimeFromTimeStr(run.getProperty('start_time').value),
-            endTime=cls._datetimeFromTimeStr(run.getProperty('end_time').value),
-            detectorState=DetectorState.fromRun(run)
-        )

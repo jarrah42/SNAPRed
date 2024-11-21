@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from datetime import datetime
 import functools
 import importlib
 import json
@@ -14,11 +15,15 @@ from contextlib import ExitStack
 from pathlib import Path
 from random import randint, shuffle
 from typing import List, Literal, Set
-
 import h5py
 import pydantic
 import pytest
-from mantid.api import ITableWorkspace, MatrixWorkspace
+
+from mantid.api import (
+    ITableWorkspace,
+    MatrixWorkspace,
+    Run
+)
 from mantid.dataobjects import MaskWorkspace
 from mantid.kernel import amend_config
 from mantid.simpleapi import (
@@ -51,6 +56,7 @@ from snapred.backend.dao.request import (
 from snapred.backend.dao.state import DetectorState
 from snapred.backend.dao.state.CalibrantSample.CalibrantSample import CalibrantSample
 from snapred.backend.dao.state.GroupingMap import GroupingMap
+from snapred.backend.dao.LiveMetadata import LiveMetadata
 from snapred.backend.data.Indexer import IndexerType
 from snapred.backend.data.LocalDataService import LocalDataService
 from snapred.backend.data.NexusHDF5Metadata import NexusHDF5Metadata as n5m
@@ -103,6 +109,9 @@ def mockPVFile(detectorState: DetectorState) -> mock.Mock:
 
     # For the HDF5-file, each key requires the "/value" suffix.
     dict_ = {
+        "run_number/value": "123456",
+        "start_time/value": "2023-06-14T14:06:40.429048667",
+        "end_time/value": "2023-06-14T14:07:56.123123123",
         "BL3:Chop:Skf1:WavelengthUserReq/value": [detectorState.wav],
         "det_arc1/value": [detectorState.arc[0]],
         "det_arc2/value": [detectorState.arc[1]],
@@ -135,6 +144,9 @@ def mockNeXusLogsMapping(detectorState: DetectorState) -> mock.Mock:
     # See also: `tests/unit/backend/data/util/test_mapping_util.py`.
     
     dict_ = {
+        "run_number": "123456",
+        "start_time": "2023-06-14T14:06:40.429048667",
+        "end_time": "2023-06-14T14:07:56.123123123",
         "BL3:Chop:Skf1:WavelengthUserReq": [detectorState.wav],
         "det_arc1": [detectorState.arc[0]],
         "det_arc2": [detectorState.arc[1]],
@@ -2059,6 +2071,79 @@ def test__detectorStateFromMapping_bad_logs():
 
     with pytest.raises(RuntimeError, match=r"Logs have an unexpected format.*"):
         localDataService._detectorStateFromMapping(invalid_wav)
+
+
+def test__datetimeFromMantidTimeStr_basic_ISO():
+   # Basic ISO time strings are used in some places:
+   instance = LocalDataService()
+   expected = datetime(
+       year=2023,
+       month=6,
+       day=14,
+       hour=14,
+       minute=6,
+       second=40
+   )
+   actual =  instance._datetimeFromMantidTimeStr('2023-06-14T14:06:40')
+   assert actual == expected
+
+  
+def test__datetimeFromMantidTimeStr_ISO_ns():
+   # ISO time strings with a nanoseconds tail are more common:
+   instance = LocalDataService()
+   expected = datetime(
+       year=2023,
+       month=6,
+       day=14,
+       hour=14,
+       minute=6,
+       second=40,
+       microsecond=429048
+   )
+   actual =  instance._datetimeFromMantidTimeStr('2023-06-14T14:06:40.429048667')
+   assert actual == expected
+
+
+def test__datetimeFromMantidTimeStr_invalid():
+    # Test with completely unexpected format.
+    instance = LocalDataService()
+    with pytest.raises(RuntimeError, match=r"cannot parse ISO-time from string.*"):
+        instance._datetimeFromMantidTimeStr("June, 14, 2023; 14:06:40")
+
+        
+def test__datetimeFromMantidTimeStr_invalid_ns():
+    # Test with an invalid tail "ns" field.
+    instance = LocalDataService()
+    with pytest.raises(RuntimeError, match=r"cannot parse ISO-time from string.*"):
+        instance._datetimeFromMantidTimeStr('2023-06-14T14:06:40.4290486671234')
+
+
+@mock.patch(ThisService + "mappingFromRun")
+def test_liveMetadataFromRun(mockMapping):
+    logs = mockNeXusLogsMapping(DAOFactory.real_detector_state)
+    mockMapping.return_value = logs
+    mockRun = mock.Mock(spec=Run)
+    instance = LocalDataService()
+    expected = LiveMetadata(
+        runNumber=logs["run_number"],
+        startTime=instance._datetimeFromMantidTimeStr(logs["start_time"]),
+        endTime=instance._datetimeFromMantidTimeStr(logs["end_time"]),
+        detectorState=DAOFactory.real_detector_state
+    )
+    actual = instance._liveMetadataFromRun(mockRun)
+    assert actual == expected
+    mockMapping.assert_called_once_with(mockRun)
+
+
+@mock.patch(ThisService + "mappingFromRun")
+def test_liveMetadataFromRun_incomplete_logs(mockMapping):
+    logs = mockNeXusLogsMapping(DAOFactory.real_detector_state)
+    logs.del_item("run_number")
+    mockMapping.return_value = logs
+    mockRun = mock.Mock(spec=Run)
+    instance = LocalDataService()
+    with pytest.raises(RuntimeError, match=r"unable to extract LiveMetadata from Run.*"):
+        instance._liveMetadataFromRun(mockRun)
 
 
 @pytest.fixture()

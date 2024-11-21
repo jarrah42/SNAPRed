@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-import datetime
+from datetime import datetime
 import glob
 import json
 import os
@@ -16,12 +16,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import h5py
 from mantid.dataobjects import MaskWorkspace
 from mantid.kernel import ConfigService, PhysicalConstants
+from mantid.api import Run
 from mantid.simpleapi import GetIPTS, mtd
 from pydantic import validate_call, ValidationError
 
 from snapred.backend.dao import (
     GSASParameters,
     InstrumentConfig,
+    LiveMetadata,
     ObjectSHA,
     ParticleBounds,
     RunConfig,
@@ -32,6 +34,7 @@ from snapred.backend.dao.calibration import Calibration, CalibrationDefaultRecor
 from snapred.backend.dao.indexing.IndexEntry import IndexEntry
 from snapred.backend.dao.indexing.Versioning import VERSION_DEFAULT
 from snapred.backend.dao.Limit import Limit, Pair
+from snapred.backend.dao.LiveMetadata import LiveMetadata
 from snapred.backend.dao.normalization import Normalization, NormalizationRecord
 from snapred.backend.dao.reduction import ReductionRecord
 from snapred.backend.dao.request import (
@@ -436,7 +439,7 @@ class LocalDataService:
                         match_ = timestampPathTag.match(part)
                         if match_:
                             tss.append(
-                                datetime.datetime(
+                                datetime(
                                     year=int(match_.group(1)),
                                     month=int(match_.group(2)),
                                     day=int(match_.group(3)),
@@ -832,6 +835,36 @@ class LocalDataService:
     def detectorStateFromWorkspace(self, wsName: WorkspaceName) -> DetectorState:
         return self._detectorStateFromMapping(mappingFromRun(mtd[wsName].getRun()))
 
+    def _datetimeFromMantidTimeStr(self, time: str) -> datetime:
+        # Mantid uses ISO format, but with an optional nanoseconds tail.
+        timeFormat = re.compile("(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.(\d{1,9}))?")
+        match_ = timeFormat.fullmatch(time)
+        if not match_:
+            raise RuntimeError(f"cannot parse ISO-time from string: {time}")        
+        return datetime(
+            year=int(match_[1]),
+            month=int(match_[2]),
+            day=int(match_[3]),
+            hour=int(match_[4]),
+            minute=int(match_[5]),
+            second=int(match_[6]),
+            microsecond=(int(match_[8]) // 1000) if match_[7] else 0
+        )
+
+    def _liveMetadataFromRun(self, run: Run) -> LiveMetadata:
+        logs = mappingFromRun(run)
+        metadata = None
+        try:
+            metadata = LiveMetadata(
+                runNumber=logs['run_number'],
+                startTime=self._datetimeFromMantidTimeStr(logs['start_time']),
+                endTime=self._datetimeFromMantidTimeStr(logs['end_time']),
+                detectorState=self._detectorStateFromMapping(logs)
+            )
+        except (KeyError, RuntimeError, ValidationError) as e:
+            raise RuntimeError("unable to extract LiveMetadata from Run") from e
+        return metadata
+        
     @validate_call
     def _writeDefaultDiffCalTable(self, runNumber: str, useLiteMode: bool):
         from snapred.backend.data.GroceryService import GroceryService
@@ -915,7 +948,7 @@ class LocalDataService:
                 name=name,
                 seedRun=runId,
                 useLiteMode=liteMode,
-                creationDate=datetime.datetime.now(),
+                creationDate=datetime.now(),
                 version=version,
             )
 
