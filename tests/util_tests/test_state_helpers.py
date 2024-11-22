@@ -24,16 +24,27 @@ def _cleanup_directories():
 
 
 def initPVFileMock():
-    return {
-        "entry/DASlogs/BL3:Chop:Skf1:WavelengthUserReq/value": [1.1],
-        "entry/DASlogs/det_arc1/value": [1.0],
-        "entry/DASlogs/det_arc2/value": [2.0],
-        "entry/DASlogs/BL3:Det:TH:BL:Frequency/value": [1.2],
-        "entry/DASlogs/BL3:Mot:OpticsPos:Pos/value": [1],
-        "entry/DASlogs/det_lin1/value": [1.0],
-        "entry/DASlogs/det_lin2/value": [2.0],
+    logs = {
+        "BL3:Chop:Skf1:WavelengthUserReq/value": [1.1],
+        "det_arc1/value": [1.0],
+        "det_arc2/value": [2.0],
+        "BL3:Det:TH:BL:Frequency/value": [1.2],
+        "BL3:Mot:OpticsPos:Pos/value": [1],
+        "det_lin1/value": [1.0],
+        "det_lin2/value": [2.0],
     }
-
+    pvFileMock = mock.Mock()
+    pvFileMock.__getitem__ = mock.Mock(side_effect=logs.__getitem__)
+    pvFileMock.__iter__ = mock.Mock(side_effect=logs.__iter__)
+    pvFileMock.__len__ = mock.Mock(side_effect=logs.__len__)
+    
+    def open_group(path):
+        if path != "entry/DASlogs":
+            raise RuntimeError(f"pvFile mock 'open_group' called with path: '{path}'")
+        return logs
+        
+    pvFileMock.open_group = mock.Mock(side_effect=open_group)
+    return pvFileMock
 
 @mock.patch.object(LocalDataService, "_writeDefaultDiffCalTable")
 @mock.patch.object(LocalDataService, "generateStateId")
