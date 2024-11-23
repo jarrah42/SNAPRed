@@ -1,20 +1,24 @@
 # ruff: noqa: F811 ARG005 ARG002
 import os
+from pydantic import validate_call
 from typing import Any, Dict, List
-from unittest import mock
 
 from mantid.simpleapi import LoadDetectorsGroupingFile, LoadEmptyInstrument, mtd
-from pydantic import validate_call
+
 from snapred.backend.dao.ingredients import GroceryListItem
 from snapred.backend.dao.state import DetectorState
 from snapred.backend.data.GroceryService import GroceryService
 from snapred.meta.Config import Config, Resource
 from snapred.meta.decorators.Singleton import Singleton
 from snapred.meta.mantid.WorkspaceNameGenerator import WorkspaceName
-from util.WhateversInTheFridge import WhateversInTheFridge
 
+from util.WhateversInTheFridge import WhateversInTheFridge
+from util.mock_util import mock_instance_methods
+
+from unittest import mock
 
 @Singleton
+@mock_instance_methods
 class InstaEats(GroceryService):
     """
     No self-respecting chef would ever be caught dead ordering groceries from InstaEats...
@@ -24,8 +28,7 @@ class InstaEats(GroceryService):
     """
 
     def __init__(self):
-        super().__init__(dataService=WhateversInTheFridge)
-        self.dataService = WhateversInTheFridge()
+        super().__init__(dataService=WhateversInTheFridge())
         self.groupingMap = self.dataService._readDefaultGroupingMap()
         self.testInstrumentFile = Resource.getPath("inputs/testInstrument/fakeSNAP_Definition.xml")
         self.instrumentDonorWorkspace = mtd.unique_name(prefix="_instrument_donor")

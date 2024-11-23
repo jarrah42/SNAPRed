@@ -205,9 +205,11 @@ class TestGroceryService(unittest.TestCase):
     def test_getIPTS(self):
         # ensure it is calling from the data service
         res = self.instance.getIPTS(self.runNumber)
-        assert res == self.instance.dataService.getIPTS(self.runNumber, Config["instrument.name"])
+        self.instance.dataService.getIPTS.assert_called_once_with(self.runNumber, Config["instrument.name"])
+        self.instance.dataService.getIPTS.reset_mock()
+        
         res = self.instance.getIPTS(self.runNumber, "CRACKLE")
-        assert res == self.instance.dataService.getIPTS(self.runNumber, "CRACKLE")
+        self.instance.dataService.getIPTS.assert_called_once_with(self.runNumber, "CRACKLE")
 
     def test_key_neutron(self):
         """ensure the key is a unique identifier for run number and lite mode"""

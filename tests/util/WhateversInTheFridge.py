@@ -2,10 +2,10 @@
 import json
 import os
 from pathlib import Path
+from pydantic import validate_call
 from typing import Any, Dict, Optional, Tuple
 
 from mantid.simpleapi import CreateSingleValuedWorkspace, mtd
-from pydantic import validate_call
 from snapred.backend.dao.calibration.CalibrationRecord import CalibrationRecord
 from snapred.backend.dao.indexing.CalculationParameters import CalculationParameters
 from snapred.backend.dao.normalization.NormalizationRecord import NormalizationRecord
@@ -22,12 +22,15 @@ from snapred.meta.Config import Config, Resource
 from snapred.meta.decorators.ExceptionHandler import ExceptionHandler
 from snapred.meta.decorators.Singleton import Singleton
 from snapred.meta.mantid.WorkspaceNameGenerator import WorkspaceNameGenerator as wng
+
 from util.dao import DAOFactory
+from util.mock_util import mock_instance_methods
 
 logger = snapredLogger.getLogger(__name__)
 
 
 @Singleton
+@mock_instance_methods
 class WhateversInTheFridge(LocalDataService):
     """
     Yeah, it'd be nice to go to the LocalDataService to get all this...
@@ -45,7 +48,7 @@ class WhateversInTheFridge(LocalDataService):
         self._instrumentConfig = self._readInstrumentConfig()
         self.mantidSnapper = MantidSnapper(None, "Utensils")
         self.latestVersion = Config["version.start"]
-
+        
     ### MISCELLANEOUS ###
 
     def fileExists(self, filepath):

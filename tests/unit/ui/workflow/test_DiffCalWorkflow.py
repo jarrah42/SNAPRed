@@ -1,6 +1,7 @@
-import threading
 from random import randint
-from unittest.mock import MagicMock, patch
+
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QApplication, QMessageBox
 
 from mantid.simpleapi import (
     CreateSingleValuedWorkspace,
@@ -8,12 +9,12 @@ from mantid.simpleapi import (
     GroupWorkspaces,
     mtd,
 )
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QApplication, QMessageBox
+
 from snapred.meta.mantid.FitPeaksOutput import FIT_PEAK_DIAG_SUFFIX, FitOutputEnum
 from snapred.meta.pointer import create_pointer
 from snapred.ui.workflow.DiffCalWorkflow import DiffCalWorkflow
 
+from unittest.mock import MagicMock, patch
 
 @patch("snapred.ui.workflow.DiffCalWorkflow.WorkflowImplementer.request")
 def test_purge_bad_peaks(workflowRequest, qtbot):  # noqa: ARG001
@@ -135,16 +136,17 @@ def test_purge_bad_peaks_too_few(workflowRequest, qtbot):  # noqa: ARG001
     )
     diffcalWorkflow.fitPeaksDiagnostic = diagWS
 
-    def execute_click():
-        w = QApplication.activeWindow()
-        if isinstance(w, QMessageBox):
-            close_button = w.button(QMessageBox.Ok)
-            qtbot.mouseClick(close_button, Qt.LeftButton)
+    criticalMessageBox = patch(
+        "qtpy.QtWidgets.QMessageBox.critical",
+        lambda *args, **kwargs: QMessageBox.Ok,  # noqa: ARG005
+    )
+    criticalMessageBox.start()
 
     # setup the qtbot to intercept the window
     qtbot.addWidget(diffcalWorkflow._tweakPeakView)
-    threading.Timer(5.0, execute_click).start()
+
     diffcalWorkflow.purgeBadPeaks(maxChiSq)
+    criticalMessageBox.stop()
 
     assert diffcalWorkflow.ingredients.groupedPeakLists[0].peaks == peaks
     assert diffcalWorkflow.ingredients.groupedPeakLists[0].peaks != good_peaks
