@@ -34,7 +34,6 @@ from snapred.backend.dao.calibration import Calibration, CalibrationDefaultRecor
 from snapred.backend.dao.indexing.IndexEntry import IndexEntry
 from snapred.backend.dao.indexing.Versioning import VERSION_DEFAULT
 from snapred.backend.dao.Limit import Limit, Pair
-from snapred.backend.dao.LiveMetadata import LiveMetadata
 from snapred.backend.dao.normalization import Normalization, NormalizationRecord
 from snapred.backend.dao.reduction import ReductionRecord
 from snapred.backend.dao.request import (
@@ -244,24 +243,6 @@ class LocalDataService:
                 nextTimestamp = _previousTimestamp + 1.0
         LocalDataService.getUniqueTimestamp._previousTimestamp = nextTimestamp
         return nextTimestamp
-
-    def hasLiveDataConnection(self, facility: str = "SNS", instrument: str = "SNAP"):
-        """For 'live data' methods: test if there is a listener connection to the instrument."""
-        
-        # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well.
-        #   So this check should also return True on those nodes.
-        # If this method returns True, then the `SNSLiveEventDataListener` should be able to function.
-        
-        # Normalize to an actual "URL" and then strip off the protocol (not actually "http") and port:
-        #   `liveDataAddress` returns "bl3-daq1.sns.gov.31415".
-        hostname = urlparse("http://" + ConfigService.getFacility(facility).instrument(instrument).liveDataAddress()).hostname
-        status = True
-        try:
-            socket.gethostbyaddr(hostname)
-        except Exception: 
-            # specifically: expecting a `socket.gaierror`, but any exception indicates there's no connection
-            status = False
-        return status
 
     @lru_cache
     def getIPTS(self, runNumber: str, instrumentName: str = Config["instrument.name"]) -> str:
@@ -850,20 +831,6 @@ class LocalDataService:
             second=int(match_[6]),
             microsecond=(int(match_[8]) // 1000) if match_[7] else 0
         )
-
-    def _liveMetadataFromRun(self, run: Run) -> LiveMetadata:
-        logs = mappingFromRun(run)
-        metadata = None
-        try:
-            metadata = LiveMetadata(
-                runNumber=logs['run_number'],
-                startTime=self._datetimeFromMantidTimeStr(logs['start_time']),
-                endTime=self._datetimeFromMantidTimeStr(logs['end_time']),
-                detectorState=self._detectorStateFromMapping(logs)
-            )
-        except (KeyError, RuntimeError, ValidationError) as e:
-            raise RuntimeError("unable to extract LiveMetadata from Run") from e
-        return metadata
         
     @validate_call
     def _writeDefaultDiffCalTable(self, runNumber: str, useLiteMode: bool):
@@ -1215,3 +1182,39 @@ class LocalDataService:
         # At present, this method is just a wrapper for 'writeDiffCalWorkspaces':
         #   its existence allows for the separation of pixel-mask I/O from diffraction-calibration workspace I/O.
         self.writeDiffCalWorkspaces(path, filename, maskWorkspaceName=maskWorkspaceName)
+
+    ## LIVE-DATA SUPPORT METHODS
+    
+    def hasLiveDataConnection(self, facility: str = "SNS", instrument: str = "SNAP"):
+        """For 'live data' methods: test if there is a listener connection to the instrument."""
+        
+        # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well.
+        #   So this check should also return True on those nodes.
+        # If this method returns True, then the `SNSLiveEventDataListener` should be able to function.
+        
+        # Normalize to an actual "URL" and then strip off the protocol (not actually "http") and port:
+        #   `liveDataAddress` returns "bl3-daq1.sns.gov:31415".
+        hostname = urlparse("http://" + ConfigService.getFacility(facility).instrument(instrument).liveDataAddress()).hostname
+        status = True
+        try:
+            socket.gethostbyaddr(hostname)
+        except Exception: 
+            # specifically: expecting a `socket.gaierror`, but any exception indicates there's no connection
+            status = False
+        return status
+    
+    def _liveMetadataFromRun(self, run: Run) -> LiveMetadata:
+        """Construct a 'LiveMetadata' instance from a 'mantid.api.Run' instance."""
+        
+        logs = mappingFromRun(run)
+        metadata = None
+        try:
+            metadata = LiveMetadata(
+                runNumber=logs['run_number'],
+                startTime=self._datetimeFromMantidTimeStr(logs['start_time']),
+                endTime=self._datetimeFromMantidTimeStr(logs['end_time']),
+                detectorState=self._detectorStateFromMapping(logs)
+            )
+        except (KeyError, RuntimeError, ValidationError) as e:
+            raise RuntimeError("unable to extract LiveMetadata from Run") from e
+        return metadata
