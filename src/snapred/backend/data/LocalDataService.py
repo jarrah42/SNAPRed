@@ -1172,7 +1172,7 @@ class LocalDataService:
     def _datetimeFromMantidTimeStr(self, time: str) -> datetime:
         # Mantid uses ISO format, but with an optional nanoseconds tail.
         timeFormat = re.compile("(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.(\d{1,9}))?")
-        match_ = timeFormat.fullmatch(time.strip()) # WARNING: Mantid time string includes whitespace.
+        match_ = timeFormat.fullmatch(time.strip()) # WARNING: Mantid time string may include whitespace.
         if not match_:
             raise RuntimeError(f"cannot parse ISO-time from string: {time}")        
         return datetime(
