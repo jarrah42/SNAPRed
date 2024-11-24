@@ -3,9 +3,7 @@ from enum import IntEnum
 import h5py
 from numbers import Number
 from typing import Literal, Tuple
-from pydantic import BaseModel, field_validator, ValidationError
-
-from mantid.api import Run
+from pydantic import BaseModel, field_validator
 
 
 class GuideState(IntEnum):

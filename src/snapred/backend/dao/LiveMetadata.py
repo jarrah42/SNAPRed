@@ -2,8 +2,6 @@ from typing import ClassVar
 from datetime import datetime
 from pydantic import BaseModel
 
-from mantid.api import Run
-
 from snapred.backend.dao.state import DetectorState
 
 

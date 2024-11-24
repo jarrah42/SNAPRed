@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 import glob
 import json
 import os
@@ -815,22 +815,6 @@ class LocalDataService:
 
     def detectorStateFromWorkspace(self, wsName: WorkspaceName) -> DetectorState:
         return self._detectorStateFromMapping(mappingFromRun(mtd[wsName].getRun()))
-
-    def _datetimeFromMantidTimeStr(self, time: str) -> datetime:
-        # Mantid uses ISO format, but with an optional nanoseconds tail.
-        timeFormat = re.compile("(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.(\d{1,9}))?")
-        match_ = timeFormat.fullmatch(time)
-        if not match_:
-            raise RuntimeError(f"cannot parse ISO-time from string: {time}")        
-        return datetime(
-            year=int(match_[1]),
-            month=int(match_[2]),
-            day=int(match_[3]),
-            hour=int(match_[4]),
-            minute=int(match_[5]),
-            second=int(match_[6]),
-            microsecond=(int(match_[8]) // 1000) if match_[7] else 0
-        )
         
     @validate_call
     def _writeDefaultDiffCalTable(self, runNumber: str, useLiteMode: bool):
@@ -1184,8 +1168,24 @@ class LocalDataService:
         self.writeDiffCalWorkspaces(path, filename, maskWorkspaceName=maskWorkspaceName)
 
     ## LIVE-DATA SUPPORT METHODS
+
+    def _datetimeFromMantidTimeStr(self, time: str) -> datetime:
+        # Mantid uses ISO format, but with an optional nanoseconds tail.
+        timeFormat = re.compile("(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.(\d{1,9}))?")
+        match_ = timeFormat.fullmatch(time.strip()) # WARNING: Mantid time string includes whitespace.
+        if not match_:
+            raise RuntimeError(f"cannot parse ISO-time from string: {time}")        
+        return datetime(
+            year=int(match_[1]),
+            month=int(match_[2]),
+            day=int(match_[3]),
+            hour=int(match_[4]),
+            minute=int(match_[5]),
+            second=int(match_[6]),
+            microsecond=(int(match_[8]) // 1000) if match_[7] else 0
+        )
     
-    def hasLiveDataConnection(self, facility: str = "SNS", instrument: str = "SNAP"):
+    def hasLiveDataConnection(self, facility: str = Config["facility"], instrument: str = Config["instrument"]):
         """For 'live data' methods: test if there is a listener connection to the instrument."""
         
         # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well.
@@ -1193,13 +1193,13 @@ class LocalDataService:
         # If this method returns True, then the `SNSLiveEventDataListener` should be able to function.
         
         # Normalize to an actual "URL" and then strip off the protocol (not actually "http") and port:
-        #   `liveDataAddress` returns "bl3-daq1.sns.gov:31415".
+        #   `liveDataAddress` returns a string similar to "bl3-daq1.sns.gov:31415".
         hostname = urlparse("http://" + ConfigService.getFacility(facility).instrument(instrument).liveDataAddress()).hostname
         status = True
         try:
             socket.gethostbyaddr(hostname)
         except Exception: 
-            # specifically: expecting a `socket.gaierror`, but any exception indicates there's no connection
+            # specifically: expecting a `socket.gaierror`, but any exception will indicate that there's no connection
             status = False
         return status
     
@@ -1209,12 +1209,54 @@ class LocalDataService:
         logs = mappingFromRun(run)
         metadata = None
         try:
+            run_number: str = str(logs['run_number'])
+            start_time: datetime.datetime = _datetimeFromMantidTimeStr(str(logs['start_time']))
+            end_time: datetime.datetime = _datetimeFromMantidTimeStr(str(logs['end_time']))
+
+            # For some reason, not all required log values are present if run is inactive -- this seems to be a defect.
+            detector_state=_detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None
+
             metadata = LiveMetadata(
-                runNumber=logs['run_number'],
-                startTime=self._datetimeFromMantidTimeStr(logs['start_time']),
-                endTime=self._datetimeFromMantidTimeStr(logs['end_time']),
-                detectorState=self._detectorStateFromMapping(logs)
+                runNumber=run_number,
+                startTime=start_time,
+                endTime=end_time,
+                detectorState=detector_state
             )
         except (KeyError, RuntimeError, ValidationError) as e:
             raise RuntimeError("unable to extract LiveMetadata from Run") from e
         return metadata
+
+    def _readLiveData(self, ws: WorkspaceName, duration: int, facility: str, instrument: str):
+        if duration < 1:
+            raise RuntimeError(f"duration must be in seconds and >= 1, not {duration}")
+            
+        ConfigService.setFacility(facility) # TODO: contextmanager? Save and reset the facility.
+        self.mantidsnapper.LoadLiveData(
+            OutputWorkspace=ws,
+            Instrument=instrument,
+            AccumulationMethod='Replace',
+            StartTime=(datetime.utcnow() + timedelta(seconds=-duration)).isoformat()
+        )
+        self.mantidsnapper.executeQueue()
+        
+        return ws
+
+    def readLiveMetadata(self, facility: str = Config["facility"], instrument: str = Config["instrument"]) -> LiveMetadata:
+        ws = self.mantidsnapper.mtd.unique_hidden_name()
+        
+        # Get the smallest possible data increment, in order to read the logs:
+        ws = self._readLiveData(ws, duration=1, facility=facility, instrument=instrument)
+        metadata = self._liveMetadataFromRun(mtd[ws].getRun())
+        
+        self.mantidsnapper.DeleteWorkspace(ws)
+        self.mantidsnapper.executeQueue()
+        return metadata
+        
+    def readLiveData(
+        self,
+        ws: WorkspaceName,
+        duration: int,
+        facility: str = Config["facility"],
+        instrument: str = Config["instrument"]
+    ) -> WorkspaceName:
+        return self._readLiveData(ws, duration, facility, instrument)

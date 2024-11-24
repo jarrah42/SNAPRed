@@ -8,6 +8,9 @@ orchestration:
   path:
     delimiter: /
 
+facility:
+  name: SNS
+  
 instrument:
   name: SNAP
   home: ${IPTS.root}/SNAP

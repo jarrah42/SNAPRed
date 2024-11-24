@@ -15,12 +15,22 @@ def mappingFromRun(run: Run) -> Mapping:
             self._run = run
             
         def __getitem__(self, key: str) -> Any:
-            try:
-                value = self._run.getProperty(key).value
-            except RuntimeError as e:
-                if "Unknown property search object" in str(e):
-                    raise KeyError(key) from e
-                raise
+            # Too many special cases in the logs!
+            value = None
+            match key:
+                case 'start_time':
+                    value = self._run.startTime()
+                case 'end_time':
+                    value = self._run.endTime()
+                case 'run_number':
+                    value = self._run.getProperty('run_number') if self._run.hasProperty('run_number') else 0
+                case _:
+                    try:
+                        value = self._run.getProperty(key).value
+                    except RuntimeError as e:
+                        if "Unknown property search object" in str(e):
+                            raise KeyError(key) from e
+                        raise
             return value
         
         def __iter__(self):
