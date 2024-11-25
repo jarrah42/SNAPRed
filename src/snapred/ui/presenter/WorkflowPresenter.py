@@ -5,6 +5,7 @@ from qtpy.QtWidgets import QMainWindow, QMessageBox
 
 from snapred.backend.api.InterfaceController import InterfaceController
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.log.logger import snapredLogger
 from snapred.ui.handler.SNAPResponseHandler import SNAPResponseHandler
 from snapred.ui.model.WorkflowNodeModel import WorkflowNodeModel
@@ -192,6 +193,18 @@ class WorkflowPresenter(QObject):
             raise NotImplementedError(f"Continue anyway handler not implemented: {self.view.tabModel}")
         self.handleContinueButtonClicked(self.view.tabModel)
 
+    @Slot(object)
+    def liveDataStateTransition(self, liveDataInfo: LiveDataState.Model):
+        # The associated signal is of type ``Signal(SNAPResponseHandler.liveDataStateTransition) as Signal(object)``
+        QMessageBox.information(
+            self.view,
+            "Live Data:",
+            liveDataInfo.message
+        )
+        # Any live-data transition resets the workflow:
+        #   at which point the request-view should display the new live-data status.
+        self.reset()
+    
     def completeWorkflow(self):
         # Directly show the completion message and reset the workflow
         QMessageBox.information(

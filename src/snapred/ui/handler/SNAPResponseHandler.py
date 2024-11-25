@@ -5,6 +5,7 @@ from qtpy.QtWidgets import QMessageBox, QWidget
 
 from snapred.backend.dao.SNAPResponse import ResponseCode, SNAPResponse
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.RecoverableException import RecoverableException
 from snapred.backend.log.logger import snapredLogger
 from snapred.ui.view.InitializeStateCheckView import InitializationMenu
@@ -16,6 +17,7 @@ class SNAPResponseHandler(QWidget):
     signal = Signal(object)
     signalWarning = Signal(str, object)
     continueAnyway = Signal(object)
+    liveDataStateTransition = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -49,6 +51,8 @@ class SNAPResponseHandler(QWidget):
             raise RuntimeError(result.message)
         if result.code >= ResponseCode.RECOVERABLE:
             raise RecoverableException.parse_raw(result.message)
+        if result.code == ResponseCode.LIVE_DATA_STATE:
+            raise LiveDataState.parse_raw(result.message)
         if result.code == ResponseCode.CONTINUE_WARNING:
             raise ContinueWarning.parse_raw(result.message)
         if result.message:
@@ -69,6 +73,9 @@ class SNAPResponseHandler(QWidget):
             recoverableException = RecoverableException.parse_raw(message)
             if recoverableException.flags == RecoverableException.Type.STATE_UNINITIALIZED:
                 SNAPResponseHandler.handleStateMessage(view, recoverableException)
+        elif code == ResponseCode.LIVE_DATA_STATE:
+            liveDataInfo = LiveDataState.Model.model_validate_json(message)
+            view.liveDataStateTransition.emit(liveDataInfo)
         elif code == ResponseCode.CONTINUE_WARNING:
             continueInfo = ContinueWarning.Model.model_validate_json(message)
             if SNAPResponseHandler._handleContinueWarning(continueInfo, view):
