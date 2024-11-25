@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 import glob
 import json
@@ -1169,22 +1170,15 @@ class LocalDataService:
 
     ## LIVE-DATA SUPPORT METHODS
 
-    def _datetimeFromMantidTimeStr(self, time: str) -> datetime:
-        # Mantid uses ISO format, but with an optional nanoseconds tail.
-        timeFormat = re.compile("(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.(\d{1,9}))?")
-        match_ = timeFormat.fullmatch(time.strip()) # WARNING: Mantid time string may include whitespace.
-        if not match_:
-            raise RuntimeError(f"cannot parse ISO-time from string: {time}")        
-        return datetime(
-            year=int(match_[1]),
-            month=int(match_[2]),
-            day=int(match_[3]),
-            hour=int(match_[4]),
-            minute=int(match_[5]),
-            second=int(match_[6]),
-            microsecond=(int(match_[8]) // 1000) if match_[7] else 0
-        )
-    
+    @contextmanager
+    def _useFacility(self, facility=Config["facility"]):
+        _facilitySave: str = ConfigManager.getFacility()
+        ConfigManager.setFacility(facility)
+        yield facility
+        
+        # exit
+        ConfigManager.setFacility(_facilitySave)
+        
     def hasLiveDataConnection(self, facility: str = Config["facility"], instrument: str = Config["instrument"]):
         """For 'live data' methods: test if there is a listener connection to the instrument."""
         
@@ -1210,8 +1204,8 @@ class LocalDataService:
         metadata = None
         try:
             run_number: str = str(logs['run_number'])
-            start_time: datetime.datetime = _datetimeFromMantidTimeStr(str(logs['start_time']))
-            end_time: datetime.datetime = _datetimeFromMantidTimeStr(str(logs['end_time']))
+            start_time: datetime.datetime = logs['start_time'].to_datetime64().astype(datetime)
+            end_time: datetime.datetime = logs['end_time'].to_datetime64().astype(datetime)
 
             # For some reason, not all required log values are present if run is inactive -- this seems to be a defect.
             detector_state=_detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None
@@ -1230,21 +1224,21 @@ class LocalDataService:
         if duration < 1:
             raise RuntimeError(f"duration must be in seconds and >= 1, not {duration}")
             
-        ConfigService.setFacility(facility) # TODO: contextmanager? Save and reset the facility.
-        self.mantidsnapper.LoadLiveData(
-            OutputWorkspace=ws,
-            Instrument=instrument,
-            AccumulationMethod='Replace',
-            StartTime=(datetime.utcnow() + timedelta(seconds=-duration)).isoformat()
-        )
-        self.mantidsnapper.executeQueue()
+        with self._useFacility(facility):
+            self.mantidsnapper.LoadLiveData(
+                OutputWorkspace=ws,
+                Instrument=instrument,
+                AccumulationMethod='Replace',
+                StartTime=(datetime.utcnow() + timedelta(seconds=-duration)).isoformat()
+            )
+            self.mantidsnapper.executeQueue()
         
         return ws
 
     def readLiveMetadata(self, facility: str = Config["facility"], instrument: str = Config["instrument"]) -> LiveMetadata:
         ws = self.mantidsnapper.mtd.unique_hidden_name()
         
-        # Get the smallest possible data increment, in order to read the logs:
+        # Retrieve the smallest possible data increment, in order to read the logs:
         ws = self._readLiveData(ws, duration=1, facility=facility, instrument=instrument)
         metadata = self._liveMetadataFromRun(mtd[ws].getRun())
         
