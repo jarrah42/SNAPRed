@@ -1,7 +1,9 @@
 """ Adapters to present various Mantid interfaces as Python Mapping
 """
 from collections.abc import Mapping
+import datetime
 import h5py
+import numpy as np
 from typing import Any
 
 from mantid.api import Run
@@ -19,9 +21,12 @@ def mappingFromRun(run: Run) -> Mapping:
             value = None
             match key:
                 case 'start_time':
-                    value = self._run.startTime()
+                    # Convert from nanosecond to microsecond time resolution:
+                    #   whether this is acceptable or not depends on the intended use case.
+                    # For end users selecting live-data duration based on the run start time, this works fine.
+                    value = np.datetime64(self._run.startTime().to_datetime64(), "us").astype(datetime.datetime)
                 case 'end_time':
-                    value = self._run.endTime()
+                    value = np.datetime64(self._run.endTime().to_datetime64(), "us").astype(datetime.datetime)
                 case 'run_number':
                     value = self._run.getProperty('run_number') if self._run.hasProperty('run_number') else 0
                 case _:

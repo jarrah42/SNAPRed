@@ -1,3 +1,5 @@
+import datetime
+
 from mantid.simpleapi import (
     CreateSampleWorkspace,
     DeleteWorkspace,
@@ -44,9 +46,13 @@ class TestMappingFromRun(unittest.TestCase):
 
     def test_get_item(self):
         map = mappingFromRun(self.ws.getRun())
+        
+        # *** DEBUG ***
+        print(f'============== type: {type(map["start_time"])}, value: {map["start_time"]}')
+        
         assert map["run_title"] == "Test Workspace"
-        assert map["start_time"] == "2010-01-01T00:00:00"
-        assert map["end_time"] == "2010-01-01T01:00:00"
+        assert map["start_time"] == datetime.datetime.fromisoformat("2010-01-01T00:00:00")
+        assert map["end_time"] == datetime.datetime.fromisoformat("2010-01-01T01:00:00")
         
     def test_iter(self):
         map = mappingFromRun(self.ws.getRun())

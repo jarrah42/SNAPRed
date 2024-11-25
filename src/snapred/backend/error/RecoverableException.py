@@ -36,15 +36,17 @@ class RecoverableException(Exception):
         return self.model.data
 
     def __init__(self, message: str, flags: "Type" = 0, data: Optional[Any] = None):
-        RecoverableException.Model.update_forward_refs()
+        # rebase note: `model_rebuild(force=True)` replaces `update_forward_refs`!
         RecoverableException.Model.model_rebuild(force=True)
         self.model = RecoverableException.Model(message=message, flags=flags, data=data)
         super().__init__(message)
 
+    @staticmethod
     def parse_raw(raw):
         raw = RecoverableException.Model.model_validate_json(raw)
         return RecoverableException(**raw.dict())
 
+    @staticmethod
     def stateUninitialized(runNumber: str, useLiteMode: bool):
         return RecoverableException(
             "State uninitialized",

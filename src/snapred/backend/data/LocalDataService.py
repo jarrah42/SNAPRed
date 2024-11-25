@@ -1171,7 +1171,7 @@ class LocalDataService:
     ## LIVE-DATA SUPPORT METHODS
 
     @contextmanager
-    def _useFacility(self, facility=Config["facility"]):
+    def _useFacility(self, facility: str):
         _facilitySave: str = ConfigManager.getFacility()
         ConfigManager.setFacility(facility)
         yield facility
@@ -1179,7 +1179,7 @@ class LocalDataService:
         # exit
         ConfigManager.setFacility(_facilitySave)
         
-    def hasLiveDataConnection(self, facility: str = Config["facility"], instrument: str = Config["instrument"]):
+    def hasLiveDataConnection(self, facility: str = Config["facility.name"], instrument: str = Config["instrument.name"]):
         """For 'live data' methods: test if there is a listener connection to the instrument."""
         
         # In addition to 'analysis.sns.gov', other nodes on the subnet should be OK as well.
@@ -1204,11 +1204,11 @@ class LocalDataService:
         metadata = None
         try:
             run_number: str = str(logs['run_number'])
-            start_time: datetime.datetime = logs['start_time'].to_datetime64().astype(datetime)
-            end_time: datetime.datetime = logs['end_time'].to_datetime64().astype(datetime)
+            start_time: datetime.datetime = logs['start_time']
+            end_time: datetime.datetime = logs['end_time']
 
-            # For some reason, not all required log values are present if run is inactive -- this seems to be a defect.
-            detector_state=_detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None
+            # For some reason, not all required log values are present if a run is inactive -- this seems to be a defect.
+            detector_state=self._detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None
 
             metadata = LiveMetadata(
                 runNumber=run_number,
@@ -1235,7 +1235,7 @@ class LocalDataService:
         
         return ws
 
-    def readLiveMetadata(self, facility: str = Config["facility"], instrument: str = Config["instrument"]) -> LiveMetadata:
+    def readLiveMetadata(self, facility: str = Config["facility.name"], instrument: str = Config["instrument.name"]) -> LiveMetadata:
         ws = self.mantidsnapper.mtd.unique_hidden_name()
         
         # Retrieve the smallest possible data increment, in order to read the logs:
@@ -1250,7 +1250,7 @@ class LocalDataService:
         self,
         ws: WorkspaceName,
         duration: int,
-        facility: str = Config["facility"],
-        instrument: str = Config["instrument"]
+        facility: str = Config["facility.name"],
+        instrument: str = Config["instrument.name"]
     ) -> WorkspaceName:
         return self._readLiveData(ws, duration, facility, instrument)
