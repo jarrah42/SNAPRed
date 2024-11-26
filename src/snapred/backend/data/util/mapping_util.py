@@ -58,7 +58,7 @@ def mappingFromNeXusLogs(h5: h5py.File) -> Mapping:
     class _Mapping(Mapping):
         
         def __init__(self, h5: h5py.File):
-            self._logs = h5.open_group("entry/DASlogs")
+            self._logs = h5["entry/DASlogs"]
             
         def __getitem__(self, key: str) -> Any:
             return self._logs[key + "/value"]
