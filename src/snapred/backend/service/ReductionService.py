@@ -22,6 +22,7 @@ from snapred.backend.data.DataExportService import DataExportService
 from snapred.backend.data.DataFactoryService import DataFactoryService
 from snapred.backend.data.GroceryService import GroceryService
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.StateValidationException import StateValidationException
 from snapred.backend.log.logger import snapredLogger
 from snapred.backend.recipe.algorithm.MantidSnapper import MantidSnapper
@@ -373,6 +374,9 @@ class ReductionService(Service):
 
         # gather the input workspace and the diffcal table
         self.groceryClerk.name("inputWorkspace").neutron(request.runNumber).useLiteMode(request.useLiteMode).add()
+        
+        # *** DEBUG ***
+        raise LiveDataState.runStateTransition("0", "46680")
 
         # As an interim solution: set the request "versions" field to the latest calibration and normalization versions.
         #   TODO: set these when the request is initially generated.

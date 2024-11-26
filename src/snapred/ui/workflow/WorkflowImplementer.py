@@ -136,8 +136,12 @@ class WorkflowImplementer(QObject):
     def _handleComplications(self, result):
         # requests never execute on the main thread
         # so this should just rethrow and let the main thread handle it
-        self.responseHandler.rethrow(result)
+        
+        # self.responseHandler.rethrow(result)
 
+        # *** DEBUG ***
+        self.responseHandler.handle(result)
+        
     def _continueAnywayHandler(self, continueInfo):
         if isinstance(continueInfo, ContinueWarning.Model):
             self.continueAnywayFlags = self.continueAnywayFlags | continueInfo.flags

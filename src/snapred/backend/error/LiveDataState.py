@@ -35,7 +35,7 @@ class LiveDataState(Exception):
  
     def __init__(self, message: str, transition: "Type", endRunNumber: str, startRunNumber: str):
         LiveDataState.Model.model_rebuild(force=True)
-        self.model = LiveDataState.Model(message=message, flags=flags, endRunNumber=endRunNumber, startRunNumber=startRunNumber)
+        self.model = LiveDataState.Model(message=message, transition=transition, endRunNumber=endRunNumber, startRunNumber=startRunNumber)
         super().__init__(message)
 
     @property

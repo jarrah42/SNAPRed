@@ -63,6 +63,7 @@ class WorkflowPresenter(QObject):
         self._hookupSignals()
         self.responseHandler = SNAPResponseHandler(self.view)
         self.responseHandler.continueAnyway.connect(self.continueAnyway)
+        self.responseHandler.liveDataStateTransition.connect(self.liveDataStateTransition)
 
         if self.view.parent() is not None:
             self.enableAllWorkflows.connect(self.view.parent().enableAllWorkflows)

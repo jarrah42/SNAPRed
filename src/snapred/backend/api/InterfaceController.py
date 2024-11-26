@@ -51,7 +51,7 @@ class InterfaceController:
             response = SNAPResponse(code=ResponseCode.RECOVERABLE, message=e.model.json())
         except LiveDataState as e:
             self.logger.error(
-                f"live-data state change: {e.model.flags}: "
+                f"live-data state change: {e.model.transition}: "
                 + f"{e.model.endRunNumber} <- {e.model.startRunNumber}"
             )
             response = SNAPResponse(code=ResponseCode.LIVE_DATA_STATE, message=e.model.json())            
