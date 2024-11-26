@@ -1991,6 +1991,68 @@ def test_readDetectorState(monkeypatch):
         mockMappingFromNeXusLogs.return_value
     )
 
+
+def test_readDetectorState_no_PVFile(monkeypatch):
+    runNumber="123"
+    instance = LocalDataService()
+    instance._readPVFile = mock.Mock(side_effect=FileNotFoundError("lah dee dah"))
+    with pytest.raises(FileNotFoundError, match="lah dee dah"):
+        instance.readDetectorState(runNumber)
+
+
+def test_readDetectorState_no_PVFile_no_connection(monkeypatch):
+    runNumber="12345"
+    instance = LocalDataService()
+    instance._readPVFile = mock.Mock(side_effect=FileNotFoundError("lah dee dah"))
+    instance.hasLiveDataConnection = mock.Mock(return_value=False)
+    with pytest.raises(FileNotFoundError, match="lah dee dah"):
+        instance.readDetectorState(runNumber)
+
+
+def test_readDetectorState_live_run():
+    runNumber="123"
+    expected = mockDetectorState(runNumber)    
+    mockLiveMetadata = mock.Mock(
+        spec=LiveMetadata,
+        runNumber=runNumber,
+        detectorState=expected
+    )
+    
+    instance = LocalDataService()
+    instance._readPVFile = mock.Mock(side_effect=FileNotFoundError("lah dee dah"))
+    instance.hasLiveDataConnection = mock.Mock(return_value=True)
+    instance.readLiveMetadata = mock.Mock(return_value=mockLiveMetadata)
+
+    actual = instance.readDetectorState(runNumber)
+    assert actual == expected
+    
+    instance._readPVFile.assert_called_once_with(runNumber)
+    instance.hasLiveDataConnection.assert_called_once()
+    instance.readLiveMetadata.assert_called_once()
+
+
+def test_readDetectorState_live_run_mismatch():
+    # Test that an unexpected live run number throws an exception.
+    runNumber0="12345"
+    runNumber1="67890"
+    mockLiveMetadata = mock.Mock(
+        spec=LiveMetadata,
+        runNumber=runNumber1,
+        detectorState=mockDetectorState(runNumber1)
+    )
+    
+    instance = LocalDataService()
+    instance._readPVFile = mock.Mock(side_effect=FileNotFoundError("lah dee dah"))
+    instance.hasLiveDataConnection = mock.Mock(return_value=True)
+    instance.readLiveMetadata = mock.Mock(return_value=mockLiveMetadata)
+
+    with pytest.raises(
+            RuntimeError,
+            match=f"No PVFile exists for run {runNumber0}, and it isn't a live run."
+        ):
+        instance.readDetectorState(runNumber0)
+
+
 def test__detectorStateFromMapping():
     localDataService = LocalDataService()
     expected = mockDetectorState("123")
