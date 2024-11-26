@@ -1204,10 +1204,12 @@ class LocalDataService:
         metadata = None
         try:
             run_number: str = str(logs['run_number'])
-            start_time: datetime.datetime = logs['start_time']
-            end_time: datetime.datetime = logs['end_time']
+            
+            # See comment at `snapred.backend.data.util.mapping_util.mappingFromRun` about this conversion.
+            start_time: datetime.datetime = np.datetime64(logs['start_time'], "us").astype(datetime.datetime)
+            end_time: datetime.datetime = np.datetime64(logs['end_time'], "us").astype(datetime.datetime)
 
-            # For some reason, not all required log values are present if a run is inactive -- this seems to be a defect.
+            # Many required log values will not be present if a run is inactive.
             detector_state=self._detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None
 
             metadata = LiveMetadata(

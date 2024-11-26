@@ -1,3 +1,4 @@
+import numpy as np
 from typing import ClassVar
 from datetime import datetime
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ class LiveMetadata(BaseModel):
     INACTIVE_RUN: ClassVar[int] = 0
     
     runNumber: str
+    
     startTime: datetime
     endTime: datetime
     

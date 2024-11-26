@@ -20,13 +20,19 @@ def mappingFromRun(run: Run) -> Mapping:
             # Too many special cases in the logs!
             value = None
             match key:
+
+                # These time values are numpy.datetime64 with nanosecond resolution.
+                # To convert to `datetime.datetime`, which only supports microseconds:
+                #   time_ns: numpy.datetime64 = numpy.datetime64(<int64>, "ns")
+                #   dt: datetime.datetime = numpy.datetime64(time_ns, "us").astype(datetime.datetime)
+                # Warning, without converting to the  "us" datetime64 representation first,
+                #   the `astype(datetime.datetime)` will fallback to returning only an <int64>.
+
                 case 'start_time':
-                    # Convert from nanosecond to microsecond time resolution:
-                    #   whether this is acceptable or not depends on the intended use case.
-                    # For end users selecting live-data duration based on the run start time, this works fine.
-                    value = np.datetime64(self._run.startTime().to_datetime64(), "us").astype(datetime.datetime)
+                    value = self._run.startTime().to_datetime64()
                 case 'end_time':
-                    value = np.datetime64(self._run.endTime().to_datetime64(), "us").astype(datetime.datetime)
+                    value = self._run.endTime().to_datetime64()
+                    
                 case 'run_number':
                     value = self._run.getProperty('run_number') if self._run.hasProperty('run_number') else 0
                 case _:
