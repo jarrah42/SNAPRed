@@ -47,12 +47,9 @@ class TestMappingFromRun(unittest.TestCase):
     def test_get_item(self):
         map = mappingFromRun(self.ws.getRun())
         
-        # *** DEBUG ***
-        print(f'============== type: {type(map["start_time"])}, value: {map["start_time"]}')
-        
         assert map["run_title"] == "Test Workspace"
-        assert map["start_time"] == datetime.datetime.fromisoformat("2010-01-01T00:00:00")
-        assert map["end_time"] == datetime.datetime.fromisoformat("2010-01-01T01:00:00")
+        assert map["start_time"] == np.datetime64("2010-01-01T00:00:00", "ns")
+        assert map["end_time"] == np.datetime64("2010-01-01T01:00:00", "ns")
         
     def test_iter(self):
         map = mappingFromRun(self.ws.getRun())
@@ -98,15 +95,14 @@ class TestMappingFromNeXusLogs(unittest.TestCase):
             del dict_[key]
 
         mock_ = mock.MagicMock(spec=h5py.Group)
-        def open_group(path: str):
-            if path != "entry/DASlogs":
-                raise RuntimeError("unable to open group")
-            return mock_
                         
         mock_.get = lambda key, default=None: dict_.get(key, default)
         mock_.del_item = del_item
-        mock_.open_group = open_group
-        mock_.__getitem__.side_effect = dict_.__getitem__
+    
+        # Use of the h5py.File starts with access to the "entry/DASlogs" group:
+        mock_.__getitem__.side_effect =\
+            lambda key: mock_ if key == "entry/DASlogs" else dict_[key]
+        
         mock_.__setitem__.side_effect = dict_.__setitem__
         mock_.__contains__.side_effect = dict_.__contains__
         mock_.keys.side_effect = dict_.keys

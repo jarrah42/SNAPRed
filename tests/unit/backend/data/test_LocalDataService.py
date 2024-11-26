@@ -4,6 +4,7 @@ import functools
 import importlib
 import json
 import logging
+import numpy as np
 import os
 import re
 import socket
@@ -126,15 +127,14 @@ def mockPVFile(detectorState: DetectorState) -> mock.Mock:
         del dict_[key]
 
     mock_ = mock.MagicMock(spec=h5py.Group)
-    def open_group(path: str):
-        if path != "entry/DASlogs":
-            raise RuntimeError("unable to open group")
-        return mock_
 
     mock_.get = lambda key, default=None: dict_.get(key, default)
     mock_.del_item = del_item
-    mock_.open_group = open_group
-    mock_.__getitem__.side_effect = dict_.__getitem__
+    
+    # Use of the h5py.File starts with access to the "entry/DASlogs" group:
+    mock_.__getitem__.side_effect =\
+       lambda key: mock_ if key == "entry/DASlogs" else dict_[key]
+    
     mock_.__contains__.side_effect = dict_.__contains__
     mock_.keys.side_effect = dict_.keys
     return mock_
@@ -614,36 +614,24 @@ def test_calibrationFileExists(GetIPTS, pathExists):  # noqa ARG002
 
 
 @mock.patch(ThisService + "GetIPTS")
-def test_calibrationFileExists_stupid_number(GetIPTS):
+def test_calibrationFileExists_stupid_number(mockGetIPTS):
     localDataService = LocalDataService()
 
     # try with a non-number
     runNumber = "fruitcake"
     assert not localDataService.checkCalibrationFileExists(runNumber)
-    assert not GetIPTS.called
+    mockGetIPTS.assert_not_called()
+    mockGetIPTS.reset_mock()
 
     # try with a too-small number
     runNumber = "7"
     assert not localDataService.checkCalibrationFileExists(runNumber)
-    assert not GetIPTS.called
-
-
-@mock.patch(ThisService + "GetIPTS")
-def test_calibrationFileExists_bad_ipts(GetIPTS):
-    GetIPTS.side_effect = RuntimeError("YOU IDIOT!")
-    with tempfile.TemporaryDirectory(prefix=Resource.getPath("outputs/")) as tmpDir:
-        assert Path(tmpDir).exists()
-        localDataService = LocalDataService()
-        runNumber = "654321"
-        assert not localDataService.checkCalibrationFileExists(runNumber)
+    mockGetIPTS.assert_not_called()
 
 
 def test_calibrationFileExists_not():  # noqa ARG002
-    # Warning: `LocalDataService.getIPTS` must be patched here
-    #   in order to bypass the `path.exists` check of the input-data file in `getIPTS`.
     localDataService = LocalDataService()
-    localDataService.getIPTS = mock.Mock()
-    
+
     stateId = ENDURING_STATE_ID
     with state_root_redirect(localDataService, stateId=stateId) as tmpRoot:
         nonExistentPath = tmpRoot.path() / "1755"
@@ -2081,8 +2069,8 @@ def test_liveMetadataFromRun(mockMapping):
     instance = LocalDataService()
     expected = LiveMetadata(
         runNumber=logs["run_number"],
-        startTime=logs["start_time"],
-        endTime=logs["end_time"],
+        startTime=np.datetime64(logs["start_time"], "us").astype(datetime),
+        endTime=np.datetime64(logs["end_time"], "us").astype(datetime),
         detectorState=DAOFactory.real_detector_state
     )
     actual = instance._liveMetadataFromRun(mockRun)
@@ -2198,7 +2186,7 @@ def test_stateIdFromWorkspace(instrumentWorkspace):
     # ------------------------------------------------------
 
     SHA = service._stateIdFromDetectorState(detectorState1)
-    expected = SHA.hex, SHA.decodedKey
+    expected = SHA.hex, detectorState1
     actual = service.stateIdFromWorkspace(wsName)
     assert actual == expected
 

@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 import glob
 import json
+import numpy as np
 import os
 import re
 import socket
@@ -297,10 +298,10 @@ class LocalDataService:
     # NOTE `lru_cache` decorator needs to be on the outside
     @lru_cache
     @ExceptionHandler(StateValidationException)
-    def generateStateId(self, runId: str) -> Tuple[str, str]:
+    def generateStateId(self, runId: str) -> Tuple[str, DetectorState]:
         detectorState = self.readDetectorState(runId)
         SHA = self._stateIdFromDetectorState(detectorState)
-        return SHA.hex, SHA.decodedKey
+        return SHA.hex, detectorState
 
     def _stateIdFromDetectorState(self, detectorState: DetectorState) -> ObjectSHA:
         stateID = StateId(
@@ -309,17 +310,18 @@ class LocalDataService:
             WavelengthUserReq=detectorState.wav,
             Frequency=detectorState.freq,
             Pos=detectorState.guideStat,
-            # TODO: these should probably be added:
-            #   if they change with the runId, there will be a potential hash collision.
+            
+            # TODO: these next could possibly be added:
+            #   but they're never supposed to change.
             # det_lin1=detectorState.lin[0],
             # det_lin2=detectorState.lin[1],
         )
         return ObjectSHA.fromObject(stateID)
 
-    def stateIdFromWorkspace(self, wsName: WorkspaceName) -> Tuple[str, str]:
+    def stateIdFromWorkspace(self, wsName: WorkspaceName) -> Tuple[str, DetectorState]:
         detectorState = self.detectorStateFromWorkspace(wsName)
         SHA = self._stateIdFromDetectorState(detectorState)
-        return SHA.hex, SHA.decodedKey
+        return SHA.hex, detectorState
 
     def _findMatchingFileList(self, pattern, throws=True) -> List[str]:
         """
@@ -811,9 +813,20 @@ class LocalDataService:
             raise RuntimeError("Logs have an unexpected format.  Cannot assemble a DetectorState.") from e
         return detectorState
         
-    def readDetectorState(self, runId: str) -> DetectorState:
-        return self._detectorStateFromMapping(mappingFromNeXusLogs(self._readPVFile(runId)))
-
+    def readDetectorState(self, runNumber: str) -> DetectorState:
+        detectorState = None
+        try:
+            detectorState = self._detectorStateFromMapping(mappingFromNeXusLogs(self._readPVFile(runNumber)))
+        except FileNotFoundError as e:
+            if not self.hasLiveDataConnection():
+                raise # the existing exception is sufficient
+            metadata = self.readLiveMetadata()
+            if metadata.runNumber == runNumber:
+                detectorState = metadata.detectorState
+            else:
+                raise RuntimeError(f"No PVFile exists for run {runNumber}, and it isn't a live run.")
+        return detectorState
+                
     def detectorStateFromWorkspace(self, wsName: WorkspaceName) -> DetectorState:
         return self._detectorStateFromMapping(mappingFromRun(mtd[wsName].getRun()))
         
@@ -835,10 +848,9 @@ class LocalDataService:
         grocer.deleteWorkspaceUnconditional(outWS)
 
     def generateInstrumentState(self, runId: str):
-        stateId, _ = self.generateStateId(runId)
-
-        # Read the detector state from the pv data file
-        detectorState = self.readDetectorState(runId)
+        # Read the detector state from the PV data file,
+        #   and generate the stateID SHA.
+        stateId, detectorState = self.generateStateId(runId)
         
         # Pull static values from resources
         defaultGroupSliceValue = Config["calibration.parameters.default.groupSliceValue"]
@@ -954,22 +966,24 @@ class LocalDataService:
         self._writeGroupingMap(stateId, groupingMap)
 
     def checkCalibrationFileExists(self, runId: str):
+        # TODO: run number format validation does not belong here!
+        
         # first perform some basic validation of the run ID
         # - it must be a string of only digits
         # - it must be greater than some minimal run number
         if not runId.isdigit() or int(runId) < Config["instrument.startingRunNumber"]:
             return False
-        # then make sure the run number has a valid IPTS
+
         try:
-            self.getIPTS(runId)
-        # if no IPTS found, return false
-        except RuntimeError:
-            return False
-        # if found, try to construct the path and test if the path exists
-        else:
+            # The existence of a calibration state root does not necessarily have anything to do with
+            #   whether or not the run has an existing IPTS directory.
+            
             stateID, _ = self.generateStateId(runId)
             calibrationStatePath: Path = self.constructCalibrationStateRoot(stateID)
             return calibrationStatePath.exists()
+        except (FileNotFoundError, RuntimeError):
+            return False
+            
 
     ##### GROUPING MAP METHODS #####
 
@@ -1206,8 +1220,8 @@ class LocalDataService:
             run_number: str = str(logs['run_number'])
             
             # See comment at `snapred.backend.data.util.mapping_util.mappingFromRun` about this conversion.
-            start_time: datetime.datetime = np.datetime64(logs['start_time'], "us").astype(datetime.datetime)
-            end_time: datetime.datetime = np.datetime64(logs['end_time'], "us").astype(datetime.datetime)
+            start_time: datetime = np.datetime64(logs['start_time'], "us").astype(datetime)
+            end_time: datetime = np.datetime64(logs['end_time'], "us").astype(datetime)
 
             # Many required log values will not be present if a run is inactive.
             detector_state=self._detectorStateFromMapping(logs) if run_number != str(LiveMetadata.INACTIVE_RUN) else None

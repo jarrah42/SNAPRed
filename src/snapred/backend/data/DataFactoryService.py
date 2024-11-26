@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import validate_call
 
@@ -13,6 +13,7 @@ from snapred.backend.dao.ReductionState import ReductionState
 from snapred.backend.dao.request.CalibrationExportRequest import CalibrationExportRequest
 from snapred.backend.dao.request.NormalizationExportRequest import NormalizationExportRequest
 from snapred.backend.dao.RunConfig import RunConfig
+from snapred.backend.dao.state.DetectorState import DetectorState
 from snapred.backend.dao.StateConfig import StateConfig
 from snapred.backend.data.GroceryService import GroceryService
 from snapred.backend.data.LocalDataService import LocalDataService
@@ -51,7 +52,7 @@ class DataFactoryService:
     def getStateConfig(self, runId: str, useLiteMode: bool) -> StateConfig:  # noqa: ARG002
         return self.lookupService.readStateConfig(runId, useLiteMode)
 
-    def constructStateId(self, runId: str):
+    def constructStateId(self, runId: str) -> Tuple[str, DetectorState]:
         return self.lookupService.generateStateId(runId)
 
     def getCalibrantSample(self, filePath):
