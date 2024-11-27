@@ -5,6 +5,7 @@ from qtpy.QtWidgets import QMessageBox, QWidget
 
 from snapred.backend.dao.SNAPResponse import ResponseCode, SNAPResponse
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.UserCancellation import UserCancellation
 from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.RecoverableException import RecoverableException
 from snapred.backend.log.logger import snapredLogger
@@ -17,6 +18,7 @@ class SNAPResponseHandler(QWidget):
     signal = Signal(object)
     signalWarning = Signal(str, object)
     continueAnyway = Signal(object)
+    userCancellation = Signal(object)
     liveDataStateTransition = Signal(object)
 
     def __init__(self, parent=None):
@@ -37,6 +39,7 @@ class SNAPResponseHandler(QWidget):
         if threading.current_thread() is threading.main_thread():  
             SNAPResponseHandler._handleComplications(result.code, result.message, self)
         else:
+            logger.error(f"DOES THIS EVER HAPPEN? SNAPResponseHandler.rethrow: {result}") # *** DEBUG ***
             self.rethrow(result)
 
     @staticmethod
@@ -54,6 +57,8 @@ class SNAPResponseHandler(QWidget):
             raise RecoverableException.parse_raw(result.message)
         if result.code == ResponseCode.LIVE_DATA_STATE:
             raise LiveDataState.parse_raw(result.message)
+        if result.code == ResponseCode.USER_CANCELLATION:
+            raise UserCancellation.parse_raw(result.message)
         if result.code == ResponseCode.CONTINUE_WARNING:
             raise ContinueWarning.parse_raw(result.message)
         if result.message:
@@ -77,6 +82,10 @@ class SNAPResponseHandler(QWidget):
         elif code == ResponseCode.LIVE_DATA_STATE:
             liveDataInfo = LiveDataState.Model.model_validate_json(message)
             view.liveDataStateTransition.emit(liveDataInfo)
+        elif code == ResponseCode.USER_CANCELLATION:
+            logger.error("Handler: I see user cancellation request: ...") # *** DEBUG ***
+            userCancellationInfo = UserCancellation.Model.model_validate_json(message)
+            view.userCancellation.emit(userCancellationInfo)        
         elif code == ResponseCode.CONTINUE_WARNING:
             continueInfo = ContinueWarning.Model.model_validate_json(message)
             if SNAPResponseHandler._handleContinueWarning(continueInfo, view):

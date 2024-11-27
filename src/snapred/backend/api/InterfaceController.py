@@ -1,9 +1,12 @@
 from typing import List
 
+from qtpy.QtCore import QThread
+
 from snapred.backend.api.RequestScheduler import RequestScheduler
 from snapred.backend.dao import SNAPRequest, SNAPResponse
 from snapred.backend.dao.SNAPResponse import ResponseCode
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.UserCancellation import UserCancellation
 from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.RecoverableException import RecoverableException
 from snapred.backend.log.logger import snapredLogger
@@ -35,6 +38,12 @@ class InterfaceController:
         # execute the recipe
         # return the result
         try:
+            # Coarse granularity: per service call user cancellation request.
+            self.logger.error("___BEEP___!")
+            if QThread.currentThread().isInterruptionRequested():
+                self.logger.error("RESPONDING TO user cancellation request: ...") # *** DEBUG ***
+                raise UserCancellation(f"User cancellation request at interface controller: {request.json()}.")
+            
             self.logger.debug(f"Request Received: {request.json()}")
             snapredLogger.clearWarnings()
 
@@ -55,6 +64,9 @@ class InterfaceController:
                 + f"{e.model.endRunNumber} <- {e.model.startRunNumber}"
             )
             response = SNAPResponse(code=ResponseCode.LIVE_DATA_STATE, message=e.model.json())            
+        except UserCancellation as e:
+            self.logger.error(f"{str(e)}")
+            response = SNAPResponse(code=ResponseCode.USER_CANCELLATION, message=e.model.json())
         except ContinueWarning as e:
             self.logger.error(f"Continue warning occurred: {str(e)}")
             response = SNAPResponse(code=ResponseCode.CONTINUE_WARNING, message=e.model.json())

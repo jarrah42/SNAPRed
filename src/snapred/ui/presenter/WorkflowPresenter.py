@@ -5,6 +5,7 @@ from qtpy.QtWidgets import QMainWindow, QMessageBox
 
 from snapred.backend.api.InterfaceController import InterfaceController
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.UserCancellation import UserCancellation
 from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.log.logger import snapredLogger
 from snapred.ui.handler.SNAPResponseHandler import SNAPResponseHandler
@@ -17,6 +18,7 @@ logger = snapredLogger.getLogger(__name__)
 
 
 class WorkflowPresenter(QObject):
+    cancellationRequest = Signal()
     enableAllWorkflows = Signal()
     disableOtherWorkflows = Signal()
 
@@ -40,6 +42,8 @@ class WorkflowPresenter(QObject):
         #    allows singleton reset during testing.
         self.completionMessageLambda = completionMessageLambda
 
+        self.worker = None
+        self._setWorkflowIsRunning(False)
         self.worker_pool = WorkerPool()
 
         self.view = WorkflowView(model, parent)
@@ -63,6 +67,7 @@ class WorkflowPresenter(QObject):
         self._hookupSignals()
         self.responseHandler = SNAPResponseHandler(self.view)
         self.responseHandler.continueAnyway.connect(self.continueAnyway)
+        self.responseHandler.userCancellation.connect(self.userCancellation)
         self.responseHandler.liveDataStateTransition.connect(self.liveDataStateTransition)
 
         if self.view.parent() is not None:
@@ -100,19 +105,26 @@ class WorkflowPresenter(QObject):
         # Workflow is complete: enable the other workflow tabs.
         self.enableAllWorkflows.emit()
 
+    def safeShutdown(self):
+        if self.workflowIsRunning:
+            logger.error("SENDING user cancellation request: ...") # *** DEBUG ***
+            self.cancellationRequest.emit()
+        else:
+            self.reset()
+
     def resetWithPermission(self):
         ActionPrompt.prompt(
             "Are you sure?",
             "Are you sure you want to cancel the workflow?\n"
             + "This will clear any partially-calculated results.",
-            self.reset,
+            self.safeShutdown,
             parent=self.view,
             # Are you sure you want to cancel the workflow?
             # Cancel or Continue?
             #
             # Cancel => continue the workflow;
             # Continue => cancel the workflow?
-            # No.
+            # No. Please! :)
             buttonNames=("Yes", "No")
         )
 
@@ -176,11 +188,24 @@ class WorkflowPresenter(QObject):
         # do action
         self.worker = self.worker_pool.createWorker(target=verifyAndContinue, args=None)
         self.worker.finished.connect(lambda: self._enableButtons(True))  # re-enable panel buttons on finish
+        self.worker.finished.connect(lambda: self._setWorkflowIsRunning(False))
+        self.worker.finished.connect(lambda: self.actionCompleted.emit())
         self.worker.result.connect(self._handleComplications)
         self.worker.success.connect(lambda success: self.advanceWorkflow() if success else None)
+        self.cancellationRequest.connect(self.worker.requestCancellation)
+        self._setWorkflowIsRunning(True)
         self.worker_pool.submitWorker(self.worker)
-        self.actionCompleted.emit()
+        self.worker = None # Transfer ownership to `worker_pool`.
 
+    @Slot(bool)
+    def _setWorkflowIsRunning(self, flag: bool):
+        self._workflowIsRunning = flag
+        return self._workflowIsRunning
+    
+    @property
+    def workflowIsRunning(self):
+        return self._workflowIsRunning
+    
     @Slot(bool)
     def _enableButtons(self, enable):
         # This slot is necessary in order for the buttons to actually be updated from the worker.
@@ -217,7 +242,12 @@ class WorkflowPresenter(QObject):
         # Any live-data transition resets the workflow:
         #   at which point the request-view should display the new live-data status.
         self.reset()
-    
+
+    @Slot(object)
+    def userCancellation(self, userCancellationInfo: UserCancellation.Model):
+        # We've already asked for permission.
+        self.reset()
+        
     def completeWorkflow(self):
         # Directly show the completion message and reset the workflow
         QMessageBox.information(

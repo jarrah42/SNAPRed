@@ -378,8 +378,8 @@ class ReductionService(Service):
         self.groceryClerk.name("inputWorkspace").neutron(request.runNumber).useLiteMode(request.useLiteMode).add()
         
         # *** DEBUG ***
-        QThread.sleep(10)
-        raise LiveDataState.runStateTransition("0", "46680")
+        # QThread.sleep(10)
+        # raise LiveDataState.runStateTransition("0", "46680")
 
         # As an interim solution: set the request "versions" field to the latest calibration and normalization versions.
         #   TODO: set these when the request is initially generated.

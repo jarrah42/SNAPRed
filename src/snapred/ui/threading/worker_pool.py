@@ -4,10 +4,13 @@ from qtpy.QtCore import QObject, QThread, Signal, Slot
 
 from snapred.backend.dao.SNAPResponse import ResponseCode, SNAPResponse
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.UserCancellation import UserCancellation
 from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.RecoverableException import RecoverableException
+from snapred.backend.log.logger import snapredLogger
 from snapred.meta.decorators.Singleton import Singleton
 
+logger = snapredLogger.getLogger(__name__)
 
 class Worker(QObject):
     finished = Signal()
@@ -19,6 +22,7 @@ class Worker(QObject):
 
     def __init__(self, target, args=None):
         super().__init__()
+        self._thisThread = None
         self.target = target
         self.args = args
 
@@ -26,6 +30,7 @@ class Worker(QObject):
     def run(self):
         """Long-running task."""
         try:
+            self._thisThread = QThread.currentThread()
             if self.args is not None:
                 results = self.target(self.args)
             else:
@@ -33,6 +38,8 @@ class Worker(QObject):
             # results.code = 200 # set to 200 for testing
         except ContinueWarning as w:
             results = SNAPResponse(code=ResponseCode.CONTINUE_WARNING, message=w.model.json())
+        except UserCancellation as e:
+            results = SNAPResponse(code=ResponseCode.USER_CANCELLATION, message=e.model.json())
         except LiveDataState as e:
             results = SNAPResponse(code=ResponseCode.LIVE_DATA_STATE, message=e.model.json())
         except RecoverableException as e:
@@ -56,7 +63,14 @@ class Worker(QObject):
                 self.success.emit(True)
                 self.finished.emit()
             raise ValueError("Worker target must return a SNAPResponse object.")
-
+    
+    @Slot()
+    def requestCancellation(self):
+        logger.error("Worker receives cancellation request...") # *** DEBUG ***
+        # Request cancellation at next interruption point.
+        if self._thisThread is not None and self._thisThread.isRunning():
+            self._thisThread.requestInterruption()
+        
 
 class InfiniteWorker(QObject):
     result = Signal(object)
@@ -105,9 +119,9 @@ class WorkerPool:
             # add to queue
             self.worker_queue.append(worker)
         else:
-            # spawn thread and deligate
+            # spawn thread and delegate
             thread = QThread()
-            # WARN: maybe the worker shouldn't be a key, not sure how equivelence is solved
+            # WARNING: maybe the worker shouldn't be a key, not sure how equivalence is solved.
             self.threads[worker] = thread
             worker.moveToThread(thread)
             # Step 5: Connect signals and slots
