@@ -66,7 +66,7 @@ class Worker(QObject):
     
     @Slot()
     def requestCancellation(self):
-        logger.error("Worker receives cancellation request...") # *** DEBUG ***
+        logger.error(f"Worker receives cancellation request...: {self._thisThread}") # *** DEBUG ***
         # Request cancellation at next interruption point.
         if self._thisThread is not None and self._thisThread.isRunning():
             self._thisThread.requestInterruption()
@@ -134,4 +134,6 @@ class WorkerPool:
             thread.finished.connect(lambda: self._dequeueWorker(worker))
 
             # Step 6: Start the thread
+            # *** DEBUG ***
+            logger.error(f"submitting worker to thread: {thread}")
             thread.start()

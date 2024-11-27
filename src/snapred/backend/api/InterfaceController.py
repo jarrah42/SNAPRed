@@ -39,7 +39,7 @@ class InterfaceController:
         # return the result
         try:
             # Coarse granularity: per service call user cancellation request.
-            self.logger.error("___BEEP___!")
+            self.logger.error(f"___BEEP___!: {QThread.currentThread()}")
             if QThread.currentThread().isInterruptionRequested():
                 self.logger.error("RESPONDING TO user cancellation request: ...") # *** DEBUG ***
                 raise UserCancellation(f"User cancellation request at interface controller: {request.json()}.")
