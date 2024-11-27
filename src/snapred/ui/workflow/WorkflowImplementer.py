@@ -1,3 +1,4 @@
+import threading
 from typing import Callable, List
 
 from qtpy.QtCore import QObject, Signal
@@ -134,12 +135,9 @@ class WorkflowImplementer(QObject):
         return response
 
     def _handleComplications(self, result):
-        # requests never execute on the main thread
-        # so this should just rethrow and let the main thread handle it
-        
-        # self.responseHandler.rethrow(result)
-
-        # *** DEBUG ***
+        # WARNING: here we are probably not on the thread that executed the request,
+        #   and a `rethrow` isn't going to magically change the thread; for that we
+        #   need to send a signal.
         self.responseHandler.handle(result)
         
     def _continueAnywayHandler(self, continueInfo):

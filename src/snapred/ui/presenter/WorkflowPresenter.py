@@ -52,7 +52,7 @@ class WorkflowPresenter(QObject):
         self._iterateLambda: Callable[[WorkflowPresenter], None] = (
             iterateLambda if iterateLambda is not None else self._NOP
         )
-        self._resetLambda: Callable[[], None] = resetLambda if resetLambda is not None else self.reset
+        self._resetLambda: Callable[[], None] = resetLambda if resetLambda is not None else self.NOP
         self._cancelLambda: Callable[[], None] = cancelLambda if cancelLambda is not None else self.resetWithPermission
 
         self.externalWorkspaces: List[str] = []
@@ -103,9 +103,17 @@ class WorkflowPresenter(QObject):
     def resetWithPermission(self):
         ActionPrompt.prompt(
             "Are you sure?",
-            "Are you sure you want to cancel the workflow? This will clear all workspaces.",
+            "Are you sure you want to cancel the workflow?\n"
+            + "This will clear any partially-calculated results.",
             self.reset,
-            self.view,
+            parent=self.view,
+            # Are you sure you want to cancel the workflow?
+            # Cancel or Continue?
+            #
+            # Cancel => continue the workflow;
+            # Continue => cancel the workflow?
+            # No.
+            buttonNames=("Yes", "No")
         )
 
     def iterate(self):
@@ -176,7 +184,11 @@ class WorkflowPresenter(QObject):
     @Slot(bool)
     def _enableButtons(self, enable):
         # This slot is necessary in order for the buttons to actually be updated from the worker.
-        buttons = [self.view.continueButton, self.view.cancelButton, self.view.skipButton]
+        
+        # *** DEBUG ***
+        # buttons = [self.view.continueButton, self.view.cancelButton, self.view.skipButton]
+        buttons = [self.view.continueButton, self.view.skipButton]
+        
         for button in buttons:
             button.setEnabled(enable)
 

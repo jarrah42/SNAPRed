@@ -4,6 +4,7 @@ from qtpy.QtCore import QObject, QThread, Signal, Slot
 
 from snapred.backend.dao.SNAPResponse import ResponseCode, SNAPResponse
 from snapred.backend.error.ContinueWarning import ContinueWarning
+from snapred.backend.error.LiveDataState import LiveDataState
 from snapred.backend.error.RecoverableException import RecoverableException
 from snapred.meta.decorators.Singleton import Singleton
 
@@ -32,6 +33,8 @@ class Worker(QObject):
             # results.code = 200 # set to 200 for testing
         except ContinueWarning as w:
             results = SNAPResponse(code=ResponseCode.CONTINUE_WARNING, message=w.model.json())
+        except LiveDataState as e:
+            results = SNAPResponse(code=ResponseCode.LIVE_DATA_STATE, message=e.model.json())
         except RecoverableException as e:
             results = SNAPResponse(code=ResponseCode.RECOVERABLE, message=e.model.json())
         except Exception as e:  # noqa: BLE001

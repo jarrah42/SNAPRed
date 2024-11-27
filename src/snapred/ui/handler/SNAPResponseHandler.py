@@ -33,7 +33,8 @@ class SNAPResponseHandler(QWidget):
         # if errors, do nothing here (program will halt)
         # if a continue warning was raised, receive what user selected
         # if the user selected to continue anyway, then emit the signal to continue anyway
-        if isinstance(threading.current_thread(), threading._MainThread):
+        
+        if threading.current_thread() is threading.main_thread():  
             SNAPResponseHandler._handleComplications(result.code, result.message, self)
         else:
             self.rethrow(result)

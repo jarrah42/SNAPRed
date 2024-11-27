@@ -3,6 +3,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Dict, List
 
+from qtpy.QtCore import QThread # *** DEBUG ***
+
 from snapred.backend.dao.ingredients import (
     ArtificialNormalizationIngredients,
     GroceryListItem,
@@ -376,6 +378,7 @@ class ReductionService(Service):
         self.groceryClerk.name("inputWorkspace").neutron(request.runNumber).useLiteMode(request.useLiteMode).add()
         
         # *** DEBUG ***
+        QThread.sleep(10)
         raise LiveDataState.runStateTransition("0", "46680")
 
         # As an interim solution: set the request "versions" field to the latest calibration and normalization versions.
