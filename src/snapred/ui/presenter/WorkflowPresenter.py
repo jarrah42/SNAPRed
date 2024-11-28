@@ -192,14 +192,16 @@ class WorkflowPresenter(QObject):
         self.worker.finished.connect(lambda: self.actionCompleted.emit())
         self.worker.result.connect(self._handleComplications)
         self.worker.success.connect(lambda success: self.advanceWorkflow() if success else None)
-        self.cancellationRequest.connect(self.worker.requestCancellation)
+        self.cancellationRequest.connect(self.requestCancellation)
         self._setWorkflowIsRunning(True)
         self.worker_pool.submitWorker(self.worker)
-        self.worker = None # Transfer ownership to `worker_pool`.
 
     @Slot(bool)
     def _setWorkflowIsRunning(self, flag: bool):
         self._workflowIsRunning = flag
+        if not flag:
+            # Transfer ownership to `worker_pool` for final deletion.
+            self.worker = None
         return self._workflowIsRunning
     
     @property
@@ -243,6 +245,14 @@ class WorkflowPresenter(QObject):
         #   at which point the request-view should display the new live-data status.
         self.reset()
 
+    @Slot()
+    def requestCancellation(self):
+        if self.worker:
+            # This needs to be executed _off_ the worker's thread.
+            # Otherwise it wouldn't happen until after the entire task
+            #   is completed.
+            self.worker.requestCancellation()
+    
     @Slot(object)
     def userCancellation(self, userCancellationInfo: UserCancellation.Model):
         # We've already asked for permission.
