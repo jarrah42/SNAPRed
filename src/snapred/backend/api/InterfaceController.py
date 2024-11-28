@@ -38,11 +38,9 @@ class InterfaceController:
         # execute the recipe
         # return the result
         try:
-            # Coarse granularity: per service call user cancellation request.
-            self.logger.error(f"___BEEP___!: {QThread.currentThread()}")
+            # Coarse granularity: implement per service call user-cancellation request.
             if QThread.currentThread().isInterruptionRequested():
-                self.logger.error("RESPONDING TO user cancellation request: ...") # *** DEBUG ***
-                raise UserCancellation(f"User cancellation request at interface controller: {request.json()}.")
+                raise UserCancellation(f"Interface controller: user cancellation: before execution of: {request.json()}.")
             
             self.logger.debug(f"Request Received: {request.json()}")
             snapredLogger.clearWarnings()
@@ -65,8 +63,11 @@ class InterfaceController:
             )
             response = SNAPResponse(code=ResponseCode.LIVE_DATA_STATE, message=e.model.json())            
         except UserCancellation as e:
-            self.logger.error(f"{str(e)}")
-            response = SNAPResponse(code=ResponseCode.USER_CANCELLATION, message=e.model.json())
+            # Do NOT return a response in this case: allow the worker thread to finish execution.
+            # The correct response will then be presented from the worker thread itself.
+            self.logger.error("User cancellation request")
+            raise
+            
         except ContinueWarning as e:
             self.logger.error(f"Continue warning occurred: {str(e)}")
             response = SNAPResponse(code=ResponseCode.CONTINUE_WARNING, message=e.model.json())

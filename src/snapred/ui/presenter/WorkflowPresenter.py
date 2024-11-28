@@ -106,8 +106,8 @@ class WorkflowPresenter(QObject):
         self.enableAllWorkflows.emit()
 
     def safeShutdown(self):
+        # Request any executing worker thread to shut down.
         if self.workflowIsRunning:
-            logger.error("SENDING user cancellation request: ...") # *** DEBUG ***
             self.cancellationRequest.emit()
         else:
             self.reset()
@@ -119,12 +119,11 @@ class WorkflowPresenter(QObject):
             + "This will clear any partially-calculated results.",
             self.safeShutdown,
             parent=self.view,
-            # Are you sure you want to cancel the workflow?
-            # Cancel or Continue?
-            #
-            # Cancel => continue the workflow;
-            # Continue => cancel the workflow?
-            # No. Please! :)
+            
+            # This was previously really confusing:
+            #   for a workflow cancellation request specifically,
+            #   use "Yes" or "No", _not_ "Continue" or "Cancel"!
+            
             buttonNames=("Yes", "No")
         )
 
@@ -212,7 +211,7 @@ class WorkflowPresenter(QObject):
     def _enableButtons(self, enable):
         # This slot is necessary in order for the buttons to actually be updated from the worker.
         
-        # *** DEBUG ***
+        # *** DEBUG *** allow user cancellation
         # buttons = [self.view.continueButton, self.view.cancelButton, self.view.skipButton]
         buttons = [self.view.continueButton, self.view.skipButton]
         
@@ -248,6 +247,12 @@ class WorkflowPresenter(QObject):
     @Slot()
     def requestCancellation(self):
         if self.worker:
+            # This supports coarse grained cancellation:
+            #   possible only after each service request completes.
+            #   Disabling the button here gives the user feedback that their action
+            #   has actually had any effect.
+            self.view.cancelButton.setEnabled(False)
+            
             # This needs to be executed _off_ the worker's thread.
             # Otherwise it wouldn't happen until after the entire task
             #   is completed.

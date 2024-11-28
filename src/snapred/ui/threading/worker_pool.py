@@ -66,8 +66,12 @@ class Worker(QObject):
     
     @Slot()
     def requestCancellation(self):
-        logger.error(f"Worker receives cancellation request...: {self._thisThread}") # *** DEBUG ***
         # Request cancellation at next interruption point.
+        
+        # IMPORTANT WARNING: this method should actually be executed on the MAIN thread.
+        #   Otherwise, it won't be executed until the worker's thread of execution can get to it.
+        #   So possibly it should not actually be a slot.
+        
         if self._thisThread is not None and self._thisThread.isRunning():
             self._thisThread.requestInterruption()
         
@@ -134,6 +138,4 @@ class WorkerPool:
             thread.finished.connect(lambda: self._dequeueWorker(worker))
 
             # Step 6: Start the thread
-            # *** DEBUG ***
-            logger.error(f"submitting worker to thread: {thread}")
             thread.start()

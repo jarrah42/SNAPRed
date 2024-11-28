@@ -39,7 +39,12 @@ class SNAPResponseHandler(QWidget):
         if threading.current_thread() is threading.main_thread():  
             SNAPResponseHandler._handleComplications(result.code, result.message, self)
         else:
-            logger.error(f"DOES THIS EVER HAPPEN? SNAPResponseHandler.rethrow: {result}") # *** DEBUG ***
+            # As a slot of the `SNAPResponseHandler` this method should only have been
+            #   executed on the main thread.
+            logger.error(
+                "IMPLEMENTATION ERROR: this should never happen!"
+                + f"\n SNAPResponseHandler.rethrow: {result}"
+            )
             self.rethrow(result)
 
     @staticmethod
@@ -51,6 +56,9 @@ class SNAPResponseHandler(QWidget):
         return ResponseCode.RECOVERABLE <= code < ResponseCode.ERROR
 
     def rethrow(self, result):
+        # TODO: A reparse and rethrow by itself will not change the thread of execution.
+        #   Was this method intended to be used as a slot?
+        
         if result.code >= ResponseCode.ERROR:
             raise RuntimeError(result.message)
         if result.code >= ResponseCode.RECOVERABLE:
@@ -83,7 +91,6 @@ class SNAPResponseHandler(QWidget):
             liveDataInfo = LiveDataState.Model.model_validate_json(message)
             view.liveDataStateTransition.emit(liveDataInfo)
         elif code == ResponseCode.USER_CANCELLATION:
-            logger.error("Handler: I see user cancellation request: ...") # *** DEBUG ***
             userCancellationInfo = UserCancellation.Model.model_validate_json(message)
             view.userCancellation.emit(userCancellationInfo)        
         elif code == ResponseCode.CONTINUE_WARNING:
