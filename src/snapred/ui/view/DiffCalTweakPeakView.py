@@ -100,7 +100,7 @@ class DiffCalTweakPeakView(BackendRequestView):
         self.purgePeaksButton.clicked.connect(self.emitPurge)
 
         # add all elements to the grid layout
-        layout_ = self.layout()
+        _layout = self.layout()
         _layout.addWidget(self.runNumberField, 0, 0)
         _layout.addWidget(self.litemodeToggle, 0, 1)
         _layout.addWidget(self.navigationBar, 1, 0)
