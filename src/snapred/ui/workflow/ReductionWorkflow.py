@@ -284,19 +284,14 @@ class ReductionWorkflow(WorkflowImplementer):
             decreaseParameter=self._artificialNormalizationView.getDecreaseParameter(),
             lss=self._artificialNormalizationView.getLSS(),
         )
-        pixelMasks = self._reconstructPixelMaskNames(self._reductionRequestView.getPixelMasks())
-        timestamp = self.request(path="reduction/getUniqueTimestamp").data
 
-        request_ = ReductionRequest(
-            runNumber=str(self._artificialNormalizationView.fieldRunNumber.text()),
-            useLiteMode=self._reductionRequestView.liteModeToggle.field.getState(),
-            timestamp=timestamp,
-            continueFlags=self.continueAnywayFlags,
-            pixelMasks=pixelMasks,
-            keepUnfocused=self._reductionRequestView.retainUnfocusedDataCheckbox.isChecked(),
-            convertUnitsTo=self._reductionRequestView.convertUnitsDropdown.currentText(),
-            artificialNormalizationIngredients=artificialNormIngredients,
-        )
+        # Use the standardized `_createReductionRequest` method: do not set a new timestamp,
+        #   nor re-initialize any other values "by hand" that may have nothing to do
+        #   with this artificial normalization step.
+        request_ = self._createReductionRequest(
+            runNumber=self._artificialNormalizationView.fieldRunNumber.text(),
+            artificialNormalizationIngredients=artificialNormIngredients
+        ) 
 
         response = self.request(path="reduction/", payload=request_)
         if response.code == ResponseCode.OK:
