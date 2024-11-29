@@ -24,8 +24,6 @@ class DiffCalSaveView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.currentIterationText = "Current"
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
 
         self.interactionText = QLabel("Assessment Complete! Would you like to save the calibration now?")
 
@@ -53,12 +51,15 @@ class DiffCalSaveView(QWidget):
         self.iterationWidget = LabeledField("Iteration :", self.iterationDropdown, self)
         self.iterationWidget.setVisible(False)
 
-        self.layout.addWidget(self.interactionText)
-        self.layout.addWidget(self.fieldRunNumber)
-        self.layout.addWidget(self.fieldVersion)
-        self.layout.addWidget(self.fieldAppliesTo)
-        self.layout.addWidget(self.fieldComments)
-        self.layout.addWidget(self.fieldAuthor)
+        # IMPORTANT: do not hide the "layout" method!
+        _layout = QGridLayout()
+        self.setLayout(_layout)
+        _layout.addWidget(self.interactionText)
+        _layout.addWidget(self.fieldRunNumber)
+        _layout.addWidget(self.fieldVersion)
+        _layout.addWidget(self.fieldAppliesTo)
+        _layout.addWidget(self.fieldComments)
+        _layout.addWidget(self.fieldAuthor)
 
     # This signal boilerplate mumbo jumbo is necessary because worker threads cant update the gui directly
     # So we have to send a signal to the main thread to update the gui, else we get an unhelpful segfault
@@ -71,7 +72,7 @@ class DiffCalSaveView(QWidget):
 
     def enableIterationDropdown(self):
         self.iterationWidget.setVisible(True)
-        self.layout.addWidget(self.iterationWidget)
+        self.layout().addWidget(self.iterationWidget)
 
     def setIterationDropdown(self, iterations):
         self.resetIterationDropdown()

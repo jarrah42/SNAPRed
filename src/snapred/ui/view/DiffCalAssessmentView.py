@@ -31,9 +31,6 @@ class DiffCalAssessmentView(QWidget):
 
         self.presenter = CalibrationAssessmentPresenter(self)
 
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
-
         self.interactionText = QLabel(
             "Calibration Complete! Please examine the calibration assessment workspaces. "
             "You can also load and examine previous calibration assessments for the same "
@@ -52,10 +49,13 @@ class DiffCalAssessmentView(QWidget):
 
         self.signalError.connect(self._displayError)
 
-        self.layout.addWidget(self.interactionText, 0, 0)
-        self.layout.addWidget(LabeledField("Calibration Record:", self.calibrationRecordDropdown, self), 1, 0)
-        self.layout.addWidget(self.loadButton, 1, 1)
-        self.layout.addWidget(self.placeHolder)
+        # IMPORTANT: do not hide the "layout" method!
+        _layout = QGridLayout()
+        self.setLayout(_layout)
+        _layout.addWidget(self.interactionText, 0, 0)
+        _layout.addWidget(LabeledField("Calibration Record:", self.calibrationRecordDropdown, self), 1, 0)
+        _layout.addWidget(self.loadButton, 1, 1)
+        _layout.addWidget(self.placeHolder)
 
         self.signalRunNumberUpdate.connect(self.presenter.loadCalibrationIndex)
 

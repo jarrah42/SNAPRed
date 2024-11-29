@@ -19,8 +19,9 @@ class BackendRequestView(QWidget):
         self.interfaceController = InterfaceController()
         self.worker_pool = WorkerPool()
 
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
+        # IMPORTANT: do not hide the "layout" method!
+        _layout = QGridLayout()        
+        self.setLayout(_layout)
 
     def _labeledField(self, label, field=None):
         return LabeledField(label, field, self)

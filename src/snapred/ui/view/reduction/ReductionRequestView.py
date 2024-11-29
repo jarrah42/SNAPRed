@@ -65,12 +65,13 @@ class ReductionRequestView(BackendRequestView):
         self.convertUnitsDropdown.setEnabled(False)
 
         # Add widgets to layout
-        self.layout.addLayout(self.runNumberLayout, 0, 0)
-        self.layout.addWidget(self.runNumberDisplay)
-        self.layout.addWidget(self.liteModeToggle)
-        self.layout.addWidget(self.pixelMaskDropdown)
-        self.layout.addWidget(self.retainUnfocusedDataCheckbox)
-        self.layout.addWidget(self.convertUnitsDropdown)
+        _layout = self.layout()
+        _layout.addLayout(self.runNumberLayout, 0, 0)
+        _layout.addWidget(self.runNumberDisplay)
+        _layout.addWidget(self.liteModeToggle)
+        _layout.addWidget(self.pixelMaskDropdown)
+        _layout.addWidget(self.retainUnfocusedDataCheckbox)
+        _layout.addWidget(self.convertUnitsDropdown)
 
         # Connect buttons to methods
         self.enterRunNumberButton.clicked.connect(self.addRunNumber)
