@@ -52,26 +52,34 @@ class ReductionRequestView(BackendRequestView):
 
         # Lite mode toggle, pixel masks dropdown, and retain unfocused data checkbox
         self.liteModeToggle = self._labeledField("Lite Mode", Toggle(parent=self, state=True))
+
         self.retainUnfocusedDataCheckbox = self._labeledCheckBox("Retain Unfocused Data")
         self.convertUnitsDropdown = self._sampleDropDown(
             "Convert Units", ["TOF", "dSpacing", "Wavelength", "MomentumTransfer"]
         )
         self.convertUnitsDropdown.setCurrentIndex(1)
+        
+        self.unfocusedDataLayout = QHBoxLayout()
+        self.unfocusedDataLayout.addWidget(self.retainUnfocusedDataCheckbox, 1)
+        self.unfocusedDataLayout.addWidget(self.convertUnitsDropdown, 2)
+        
+        # live-data toggle
+        self.liveDataToggle = self._labeledField("Live", Toggle(parent=self, state=False))
 
         # Set field properties
         self.liteModeToggle.setEnabled(False)
-        self.retainUnfocusedDataCheckbox.setEnabled(False)
         self.pixelMaskDropdown.setEnabled(False)
+        self.retainUnfocusedDataCheckbox.setEnabled(False)
         self.convertUnitsDropdown.setEnabled(False)
 
         # Add widgets to layout
         _layout = self.layout()
-        _layout.addLayout(self.runNumberLayout, 0, 0)
-        _layout.addWidget(self.runNumberDisplay)
-        _layout.addWidget(self.liteModeToggle)
-        _layout.addWidget(self.pixelMaskDropdown)
-        _layout.addWidget(self.retainUnfocusedDataCheckbox)
-        _layout.addWidget(self.convertUnitsDropdown)
+        _layout.addLayout(self.runNumberLayout, 0, 0, 1, 2)
+        _layout.addWidget(self.runNumberDisplay, 1, 0, 1, 2)
+        _layout.addWidget(self.liteModeToggle, 2, 0, 1, 1)
+        _layout.addWidget(self.liveDataToggle, 2, 1, 1, 1)
+        _layout.addWidget(self.pixelMaskDropdown, 3, 0, 1, 2)
+        _layout.addLayout(self.unfocusedDataLayout, 4, 0, 1, 2)
 
         # Connect buttons to methods
         self.enterRunNumberButton.clicked.connect(self.addRunNumber)

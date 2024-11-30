@@ -33,7 +33,9 @@ class ReductionWorkflow(WorkflowImplementer):
         )
         self._compatibleMasks: Dict[str, WorkspaceName] = {}
 
-        self._reductionRequestView.enterRunNumberButton.clicked.connect(lambda: self._populatePixelMaskDropdown())
+        # Note (just in case it's tempting to reconnect it here):
+        #   `_reductionRequestView.enterRunNumberButton.clicked.connect` has already been connected
+        #   to `self._populatePixelMaskDropdown()` at `ReductionRequestView.__init__`.
         self._reductionRequestView.pixelMaskDropdown.dropDown.view().pressed.connect(self._onPixelMaskSelection)
 
         self._artificialNormalizationView = ArtificialNormalizationView(parent=parent)
