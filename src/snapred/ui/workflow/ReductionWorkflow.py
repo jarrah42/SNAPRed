@@ -1,14 +1,17 @@
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from qtpy.QtCore import Slot
 
 from snapred.backend.dao.ingredients import ArtificialNormalizationIngredients
+from snapred.backend.dao.LiveMetadata import LiveMetadata
 from snapred.backend.dao.request import (
     CreateArtificialNormalizationRequest,
     MatchRunsRequest,
     ReductionExportRequest,
     ReductionRequest,
 )
+from snapred.backend.dao.state.DetectorState import DetectorState
 from snapred.backend.dao.SNAPResponse import ResponseCode, SNAPResponse
 from snapred.backend.error.ContinueWarning import ContinueWarning
 from snapred.backend.log.logger import snapredLogger
@@ -30,6 +33,7 @@ class ReductionWorkflow(WorkflowImplementer):
             parent=parent,
             getCompatibleMasks=self._getCompatibleMasks,
             validateRunNumbers=self._validateRunNumbers,
+            getLiveMetadata=self._getLiveMetadata
         )
         self._compatibleMasks: Dict[str, WorkspaceName] = {}
 
@@ -109,6 +113,24 @@ class ReductionWorkflow(WorkflowImplementer):
     
             return masks
 
+    def _getLiveMetadata(self) -> LiveMetadata:
+        # *** DEBUG *** : mock
+        duration = 300 # seconds
+        now = datetime.utcnow()
+        return LiveMetadata.model_construct(
+            runNumber="46680",
+            startTime=now + timedelta(seconds=-duration),
+            endTime=now,
+            # WARNING: probably not DetectorState for "46680"
+            detectorState=DetectorState(
+                arc=(-65.3, 104.95),
+                wav=2.1,
+                freq=60.0,
+                guideStat=1,
+                lin=(0.045, 0.043)
+            )
+        )
+    
     def _validateRunNumbers(self, runNumbers: List[str]):
         # For now, all run numbers in a reduction batch must be from the same instrument state.
         # This is primarily because pixel-mask selection occurs by instrument state.
