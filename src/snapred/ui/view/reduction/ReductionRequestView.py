@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 from typing import Callable, List, Optional
 
-from qtpy.QtCore import Slot
+from qtpy.QtCore import Signal, Slot
 from qtpy.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
@@ -9,28 +10,58 @@ from qtpy.QtWidgets import (
     QPushButton,
     QVBoxLayout,
 )
+
 from snapred.backend.dao.state.RunNumber import RunNumber
 from snapred.backend.log.logger import snapredLogger
 from snapred.meta.decorators.Resettable import Resettable
+from snapred.meta.decorators.ExceptionToErrLog import ExceptionToErrLog
 from snapred.ui.view.BackendRequestView import BackendRequestView
 from snapred.ui.widget.Toggle import Toggle
 
 logger = snapredLogger.getLogger(__name__)
 
 
+class _RequestViewBase(ABC):
+
+    @abstractmethod
+    def useLiteMode(self) -> bool:
+        pass
+
+    @abstractmethod
+    def keepUnfocused(self) -> bool:
+        pass
+
+    @abstractmethod
+    def convertUnitsTo(self) -> str:
+        pass
+
+    @abstractmethod
+    def liveDataMode(self) -> bool:
+        pass
+
+    @abstractmethod
+    def getRunNumbers(self) -> List[str]:
+        pass
+
+    @abstractmethod
+    def getPixelMasks(self) -> List[str]:
+        pass
+
+
 @Resettable
-class ReductionRequestView(BackendRequestView):
+class ReductionRequestView(_RequestViewBase, BackendRequestView):
+        
     def __init__(
         self,
         parent=None,
-        populatePixelMaskDropdown: Optional[Callable[[], None]] = None,
+        getCompatibleMasks: Optional[Callable[[List[str], bool], None]] = None,
         validateRunNumbers: Optional[Callable[[List[str]], None]] = None,
     ):
         super(ReductionRequestView, self).__init__(parent=parent)
 
         self.runNumbers = []
         self.pixelMaskDropdown = self._multiSelectDropDown("Select Pixel Mask(s)", [])
-        self.populatePixelMaskDropdown = populatePixelMaskDropdown
+        self.getCompatibleMasks = getCompatibleMasks
         self.validateRunNumbers = validateRunNumbers
 
         # Horizontal layout for run number input and button
@@ -84,6 +115,7 @@ class ReductionRequestView(BackendRequestView):
         # Connect buttons to methods
         self.enterRunNumberButton.clicked.connect(self.addRunNumber)
         self.clearButton.clicked.connect(self.clearRunNumbers)
+        self.retainUnfocusedDataCheckbox.checkedChanged.connect(self.convertUnitsDropdown.setEnabled)
 
     @Slot()
     def addRunNumber(self):
@@ -101,11 +133,36 @@ class ReductionRequestView(BackendRequestView):
                 self.runNumbers = noDuplicates
                 self.updateRunNumberList()
                 self.runNumberInput.clear()
-                if self.populatePixelMaskDropdown is not None:
-                    self.populatePixelMaskDropdown()
+                self._populatePixelMaskDropdown()
         except ValueError as e:
             QMessageBox.warning(self, "Warning", str(e), buttons=QMessageBox.Ok, defaultButton=QMessageBox.Ok)
             self.runNumberInput.clear()
+
+    @ExceptionToErrLog
+    def _populatePixelMaskDropdown(self):
+        runNumbers = self.getRunNumbers()
+        useLiteMode = self.liteModeToggle.field.getState()
+
+        self.liteModeToggle.setEnabled(False)
+        self.pixelMaskDropdown.setEnabled(False)
+        self.retainUnfocusedDataCheckbox.setEnabled(False)
+
+        try:
+            # Get compatible masks for the current reduction state.
+            masks = []
+            if self.getCompatibleMasks:
+                masks = self.getCompatibleMasks(runNumbers, useLiteMode)
+
+            # Populate the dropdown with the mask names.
+            self.pixelMaskDropdown.setItems(masks)
+        except Exception as e:  # noqa: BLE001
+            print(f"Error retrieving compatible masks: {e}")
+            self._reductionRequestView.pixelMaskDropdown.setItems([])
+        finally:
+            # Re-enable UI elements.
+            self.liteModeToggle.setEnabled(True)
+            self.pixelMaskDropdown.setEnabled(True)
+            self.retainUnfocusedDataCheckbox.setEnabled(True)
 
     def parseInputRunNumbers(self) -> List[str]:
         # WARNING: run numbers are strings.
@@ -152,16 +209,29 @@ class ReductionRequestView(BackendRequestView):
                 raise ValueError(
                     "Please enter a valid run number or list of run numbers. (e.g. 46680, 46685, 46686, etc...)"
                 )
-        # They dont need to select a pixel mask
-        # if self.pixelMaskDropdown.currentIndex() < 0:
-        #     raise ValueError("Please select a pixel mask.")
         if self.retainUnfocusedDataCheckbox.isChecked():
             if self.convertUnitsDropdown.currentIndex() < 0:
                 raise ValueError("Please select units to convert to")
         return True
 
-    def getRunNumbers(self):
+    ###
+    ### Abstract methods:
+    ###
+    
+    def useLiteMode(self) -> bool:
+        return self.liteModeToggle.field.getState()
+
+    def keepUnfocused(self) -> bool:
+        return self.retainUnfocusedDataCheckbox.isChecked() 
+
+    def convertUnitsTo(self) -> str:
+        return self.convertUnitsDropdown.currentText()
+
+    def liveDataMode(self) -> bool:
+        return self.liveDataToggle.field.getState()
+
+    def getRunNumbers(self) -> List[str]:
         return self.runNumbers
 
-    def getPixelMasks(self):
+    def getPixelMasks(self) -> List[str]:
         return self.pixelMaskDropdown.checkedItems()

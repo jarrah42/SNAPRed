@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 from qtpy.QtWidgets import QGridLayout, QLineEdit, QWidget
 
 from snapred.backend.api.InterfaceController import InterfaceController
@@ -8,8 +10,10 @@ from snapred.ui.widget.MultiSelectDropDown import MultiSelectDropDown
 from snapred.ui.widget.SampleDropDown import SampleDropDown
 from snapred.ui.widget.TrueFalseDropDown import TrueFalseDropDown
 
+class _Meta(type(ABC), type(QWidget)):
+    pass
 
-class BackendRequestView(QWidget):
+class BackendRequestView(ABC, QWidget, metaclass=_Meta):
     def __init__(self, parent=None):
         super(BackendRequestView, self).__init__(parent)
 
@@ -41,5 +45,6 @@ class BackendRequestView(QWidget):
     def _multiSelectDropDown(self, label, items=[]):
         return MultiSelectDropDown(label, items, self)
 
+    @abstractmethod
     def verify(self):
         raise NotImplementedError("The verification for this step was not completed.")
