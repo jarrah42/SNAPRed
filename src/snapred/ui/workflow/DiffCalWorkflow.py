@@ -91,10 +91,14 @@ class DiffCalWorkflow(WorkflowImplementer):
         self._saveView = DiffCalSaveView(parent)
 
         # connect signal to populate the grouping dropdown after run is selected
-        self._requestView.litemodeToggle.field.connectUpdate(self._switchLiteNativeGroups)
+        self._requestView.litemodeToggle.stateChanged.connect(self._switchLiteNativeGroups)
         self._requestView.runNumberField.editingFinished.connect(self._populateGroupingDropdown)
         self._tweakPeakView.signalValueChanged.connect(self.onValueChange)
         self._tweakPeakView.signalPurgeBadPeaks.connect(self.purgeBadPeaks)
+
+        # connect the lite mode toggles across the views
+        self._requestView.litemodeToggle.stateChanged.connect(self._tweakPeakView.litemodeToggle.setState)
+        self._tweakPeakView.litemodeToggle.stateChanged.connect(self._requestView.litemodeToggle.setState)
 
         self.prevFWHM = DiffCalTweakPeakView.FWHM
         self.prevXtalDMin = DiffCalTweakPeakView.XTAL_DMIN
@@ -141,7 +145,7 @@ class DiffCalWorkflow(WorkflowImplementer):
     def _populateGroupingDropdown(self):
         # when the run number is updated, freeze the drop down to populate it
         runNumber = self._requestView.runNumberField.text()
-        useLiteMode = self._requestView.litemodeToggle.field.getState()
+        useLiteMode = self._requestView.litemodeToggle.getState()
 
         self._requestView.groupingFileDropdown.setEnabled(False)
         self._requestView.litemodeToggle.setEnabled(False)
@@ -170,14 +174,13 @@ class DiffCalWorkflow(WorkflowImplementer):
     @ExceptionToErrLog
     @Slot()
     def _switchLiteNativeGroups(self):
-        # when the run number is updated, freeze the drop down to populate it
-        useLiteMode = self._requestView.litemodeToggle.field.getState()
-        self._tweakPeakView.litemodeToggle.field.setState(useLiteMode)
+        # determine resolution mode
+        useLiteMode = self._requestView.litemodeToggle.getState()
 
         # set default state for skipPixelCalToggle
         # in native mode, skip by default
         # in lite mode, do not skip by default
-        self._requestView.skipPixelCalToggle.field.setState(not useLiteMode)
+        self._requestView.skipPixelCalToggle.setState(not useLiteMode)
 
         self._requestView.groupingFileDropdown.setEnabled(False)
         # TODO: Use threads, account for fail cases
@@ -195,7 +198,7 @@ class DiffCalWorkflow(WorkflowImplementer):
 
         # fetch the data from the view
         self.runNumber = view.runNumberField.text()
-        self.useLiteMode = view.litemodeToggle.field.getState()
+        self.useLiteMode = view.litemodeToggle.getState()
         self.focusGroupPath = view.groupingFileDropdown.currentText()
         self.calibrantSamplePath = view.sampleDropdown.currentText()
         self.peakFunction = view.peakFunctionDropdown.currentText()
